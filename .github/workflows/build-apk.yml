@@ -21,11 +21,13 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
+          flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Disable Analytics and Install dependencies
+        run: |
+          flutter config --no-analytics
+          flutter pub get
 
       - name: Build APKs
         run: flutter build apk --release --split-per-abi
