@@ -80,6 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ownersCount: 0,
       officesCount: 0,
       seekersCount: 0,
+      supervisorsCount: 0,
       featuredProperties: 0,
       monthlyRevenue: 0,
       raw: <String, dynamic>{},

@@ -9,6 +9,7 @@ class AdminStats {
     required this.ownersCount,
     required this.officesCount,
     required this.seekersCount,
+    required this.supervisorsCount,
     required this.featuredProperties,
     required this.monthlyRevenue,
     required this.raw,
@@ -20,9 +21,12 @@ class AdminStats {
   final int ownersCount;
   final int officesCount;
   final int seekersCount;
+  final int supervisorsCount;
   final int featuredProperties;
   final double monthlyRevenue;
   final Map<String, dynamic> raw;
+
+  int get totalUsers => ownersCount + officesCount + seekersCount;
 
   factory AdminStats.fromJson(Map<String, dynamic> json) {
     return AdminStats(
@@ -61,6 +65,12 @@ class AdminStats {
         'totalSeekers',
         'seekers_total',
       ]),
+      supervisorsCount: _readInt(json, <String>[
+        'supervisorsCount',
+        'supervisors',
+        'totalSupervisors',
+        'supervisors_total',
+      ]),
       featuredProperties: _readInt(json, <String>[
         'featuredProperties',
         'featured_properties',
@@ -73,6 +83,21 @@ class AdminStats {
         'monthly_revenue',
       ]),
       raw: json,
+    );
+  }
+
+  factory AdminStats.mock() {
+    return const AdminStats(
+      totalProperties: 0,
+      activeProperties: 0,
+      pendingProperties: 0,
+      ownersCount: 0,
+      officesCount: 0,
+      seekersCount: 0,
+      supervisorsCount: 0,
+      featuredProperties: 0,
+      monthlyRevenue: 0,
+      raw: <String, dynamic>{},
     );
   }
 
@@ -158,6 +183,31 @@ class AdminDataService {
   Future<AdminStats> fetchStats() async {
     final response = await _apiService.get<dynamic>('/admin/stats');
     return AdminStats.fromJson(_asMap(response.data));
+  }
+
+  Future<AdminStats> fetchStatistics() async {
+    try {
+      final response = await _apiService.get<dynamic>('/admin/statistics');
+      return AdminStats.fromJson(_asMap(response.data));
+    } catch (_) {
+      try {
+        return await fetchStats();
+      } catch (_) {
+        return AdminStats.mock();
+      }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchActivityLogs() async {
+    try {
+      final response = await _apiService.get<dynamic>('/admin/activity-logs');
+      final list = _asList(response.data);
+      return list
+          .whereType<Map<String, dynamic>>()
+          .toList(growable: false);
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
   }
 
   Future<List<Property>> fetchProperties() async {

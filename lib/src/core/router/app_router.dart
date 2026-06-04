@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/admin_records/admin_endpoint_table_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
-import '../../features/placeholders/admin_placeholder_screen.dart';
+import '../../features/activity_log/activity_log_screen.dart';
 import '../../features/properties/properties_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/statistics/statistics_screen.dart';
 import '../../features/subscriptions/subscriptions_screen.dart';
 import '../../features/supervisors/supervisors_screen.dart';
 import '../../features/users/user_management_screen.dart';
@@ -157,14 +158,11 @@ GoRouter createAdminRouter(AdminSessionController sessionController) {
           ),
           GoRoute(
             path: '/reports',
-            builder: (context, state) => const AdminPlaceholderScreen(
-              title: 'التقارير والإحصائيات',
-            ),
+            builder: (context, state) => const StatisticsScreen(),
           ),
           GoRoute(
             path: '/activity-logs',
-            builder: (context, state) =>
-                const AdminPlaceholderScreen(title: 'سجل الأنشطة'),
+            builder: (context, state) => const ActivityLogScreen(),
           ),
           GoRoute(
             path: '/settings',
