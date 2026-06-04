@@ -1,0 +1,11 @@
+{
+  "name": "Aqari Plus Admin",
+  "short_name": "Aqari Admin",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F5F7FB",
+  "theme_color": "#0B3A66",
+  "description": "Aqari Plus Admin Web Panel",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
