@@ -954,7 +954,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> with SingleTickerPr
         if (_isActionLoading)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withValues(alpha: 0.06),
+              color: Colors.black.withOpacity(0.06),
               child: const Center(child: CircularProgressIndicator()),
             ),
           ),
@@ -1040,7 +1040,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Color.fromRGBO(color.r.round(), color.g.round(), color.b.round(), 0.14),
+            color: color.withOpacity(0.14),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
@@ -1252,9 +1252,9 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background =
-        enabled ? color.withValues(alpha: 0.12) : const Color(0xFFF1F5F9);
+      enabled ? color.withOpacity(0.12) : const Color(0xFFF1F5F9);
     final borderColor =
-        enabled ? color.withValues(alpha: 0.28) : const Color(0xFFE2E8F0);
+      enabled ? color.withOpacity(0.28) : const Color(0xFFE2E8F0);
     final iconColor = enabled ? color : const Color(0xFF98A2B3);
 
     return Tooltip(

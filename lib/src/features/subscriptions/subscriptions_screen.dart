@@ -441,7 +441,7 @@ class _ManualSubscriptionDialogState extends State<_ManualSubscriptionDialog> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedPackageType,
+                  value: _selectedPackageType,
                   decoration: const InputDecoration(
                     labelText: 'نوع الباقة',
                     border: OutlineInputBorder(),
@@ -464,7 +464,7 @@ class _ManualSubscriptionDialogState extends State<_ManualSubscriptionDialog> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedDuration,
+                  value: _selectedDuration,
                   decoration: const InputDecoration(
                     labelText: 'المدة',
                     border: OutlineInputBorder(),
@@ -544,7 +544,7 @@ class _SubscriptionStatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: color.withOpacity(0.14),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(

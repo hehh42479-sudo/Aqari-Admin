@@ -46,7 +46,7 @@ ThemeData buildAdminTheme() {
       backgroundColor: primary,
       foregroundColor: Colors.white,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

@@ -289,8 +289,8 @@ class _BrandHeader extends StatelessWidget {
         Container(
           width: isCompact ? 40 : 48,
           height: isCompact ? 40 : 48,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
+            decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.14),
             borderRadius: BorderRadius.circular(16),
           ),
           padding: const EdgeInsets.all(6),
@@ -347,8 +347,8 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isActive ? Colors.white : const Color(0xFFDDE8F4);
     final background = isActive
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.transparent;
+      ? Colors.white.withOpacity(0.14)
+      : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -366,8 +366,8 @@ class _SidebarItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isActive
-                    ? Colors.white.withValues(alpha: 0.22)
-                    : Colors.transparent,
+                  ? Colors.white.withOpacity(0.22)
+                  : Colors.transparent,
               ),
             ),
             child: Row(
@@ -414,7 +414,7 @@ class _LogoutButton extends StatelessWidget {
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFFFFD4D4),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.24)),
+          side: BorderSide(color: Colors.white.withOpacity(0.24)),
           padding: EdgeInsets.symmetric(
             horizontal: isCompact ? 12 : 14,
             vertical: 14,
