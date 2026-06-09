@@ -182,13 +182,13 @@ class AdminDataService {
 
   Future<AdminStats> fetchStats() async {
     final response = await _apiService.get<dynamic>('/admin/stats');
-    return AdminStats.fromJson(_asMap(response.data));
+    return AdminStats.fromJson(ApiResponseNormalizer.asMap(response.data));
   }
 
   Future<AdminStats> fetchStatistics() async {
     try {
       final response = await _apiService.get<dynamic>('/admin/statistics');
-      return AdminStats.fromJson(_asMap(response.data));
+      return AdminStats.fromJson(ApiResponseNormalizer.asMap(response.data));
     } catch (_) {
       try {
         return await fetchStats();
@@ -201,7 +201,7 @@ class AdminDataService {
   Future<List<Map<String, dynamic>>> fetchActivityLogs() async {
     try {
       final response = await _apiService.get<dynamic>('/admin/activity-logs');
-      final list = _asList(response.data);
+      final list = ApiResponseNormalizer.asList(response.data);
       return list
           .whereType<Map<String, dynamic>>()
           .toList(growable: false);
@@ -212,7 +212,7 @@ class AdminDataService {
 
   Future<List<Property>> fetchProperties() async {
     final response = await _apiService.get<dynamic>('/admin/properties');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .map(Property.fromJson)
@@ -224,7 +224,7 @@ class AdminDataService {
       '/admin/users',
       queryParameters: <String, dynamic>{'role': role},
     );
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -232,7 +232,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchSubscriptions() async {
     final response = await _apiService.get<dynamic>('/admin/subscriptions');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -255,7 +255,7 @@ class AdminDataService {
 
   Future<Map<String, dynamic>> fetchAppSettings() async {
     final response = await _apiService.get<dynamic>('/admin/settings');
-    return _asMap(response.data);
+    return ApiResponseNormalizer.asMap(response.data);
   }
 
   Future<void> saveAppSettings({
@@ -277,7 +277,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchNotifications() async {
     final response = await _apiService.get<dynamic>('/admin/notifications');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -285,7 +285,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchPayments() async {
     final response = await _apiService.get<dynamic>('/admin/payments');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -293,7 +293,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchComplaints() async {
     final response = await _apiService.get<dynamic>('/admin/complaints');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -301,7 +301,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchMessages() async {
     final response = await _apiService.get<dynamic>('/admin/messages');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -309,7 +309,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchFeaturedProperties() async {
     final response = await _apiService.get<dynamic>('/admin/properties/featured');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -332,7 +332,7 @@ class AdminDataService {
 
   Future<List<Map<String, dynamic>>> fetchSupervisors() async {
     final response = await _apiService.get<dynamic>('/admin/supervisors');
-    final list = _asList(response.data);
+    final list = ApiResponseNormalizer.asList(response.data);
     return list
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
@@ -364,62 +364,5 @@ class AdminDataService {
       '/admin/supervisors',
       data: payload,
     );
-  }
-
-  Map<String, dynamic> _asMap(dynamic data) {
-    if (data is Map<String, dynamic>) {
-      final nested = data['data'];
-      if (nested is Map<String, dynamic>) {
-        return nested;
-      }
-      return data;
-    }
-
-    if (data is Map) {
-      return data.map((key, value) => MapEntry(key.toString(), value));
-    }
-
-    return <String, dynamic>{'raw': data};
-  }
-
-  List<dynamic> _asList(dynamic data) {
-    final list = _findFirstList(data);
-    return list ?? <dynamic>[];
-  }
-
-  List<dynamic>? _findFirstList(dynamic value, {int depth = 0}) {
-    if (value is List<dynamic>) {
-      return value;
-    }
-
-    if (value is Map<String, dynamic>) {
-      final preferredKeys = <String>[
-        'data',
-        'properties',
-        'users',
-        'subscriptions',
-        'items',
-        'results',
-        'result',
-        'rows',
-      ];
-
-      for (final key in preferredKeys) {
-        final nested = value[key];
-        final nestedList = _findFirstList(nested, depth: depth + 1);
-        if (nestedList != null) {
-          return nestedList;
-        }
-      }
-
-      for (final nested in value.values) {
-        final nestedList = _findFirstList(nested, depth: depth + 1);
-        if (nestedList != null) {
-          return nestedList;
-        }
-      }
-    }
-
-    return null;
   }
 }

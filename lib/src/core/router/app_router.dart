@@ -4,6 +4,7 @@ import '../../features/admin_records/admin_endpoint_table_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/activity_log/activity_log_screen.dart';
+import '../../features/properties/add_property_screen.dart';
 import '../../features/properties/properties_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
@@ -51,6 +52,10 @@ GoRouter createAdminRouter(AdminSessionController sessionController) {
           GoRoute(
             path: '/properties',
             builder: (context, state) => const PropertiesScreen(),
+          ),
+          GoRoute(
+            path: '/properties/add',
+            builder: (context, state) => const AddPropertyScreen(),
           ),
           GoRoute(
             path: '/owners',

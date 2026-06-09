@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/services/api_service.dart';
@@ -713,35 +714,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> with SingleTickerPr
   }
 
   List<dynamic> _extractPropertyList(dynamic data) {
-    if (data is List<dynamic>) {
-      return data;
-    }
-
-    if (data is Map<String, dynamic>) {
-      final preferredKeys = <String>[
-        'data',
-        'properties',
-        'items',
-        'results',
-        'result',
-        'rows',
-      ];
-
-      for (final key in preferredKeys) {
-        final nested = data[key];
-        if (nested is List<dynamic>) {
-          return nested;
-        }
-      }
-
-      for (final value in data.values) {
-        if (value is List<dynamic>) {
-          return value;
-        }
-      }
-    }
-
-    return <dynamic>[];
+    return ApiResponseNormalizer.asList(data);
   }
 
   void _sortProperties(int columnIndex, bool ascending) {
@@ -987,10 +960,22 @@ class _ScreenHeader extends StatelessWidget {
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: onRefresh,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('تحديث البيانات'),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            ElevatedButton.icon(
+              onPressed: () => context.go('/properties/add'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('إضافة عقار'),
+            ),
+            ElevatedButton.icon(
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('تحديث البيانات'),
+            ),
+          ],
         ),
       ],
     );
