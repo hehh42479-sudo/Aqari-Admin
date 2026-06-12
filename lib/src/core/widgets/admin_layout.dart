@@ -304,7 +304,7 @@ class _BrandHeader extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(
-              'assets/logo.png.jpg',
+              'assets/logo.png.png',
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
                 return const Center(
