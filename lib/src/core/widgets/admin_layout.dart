@@ -79,6 +79,11 @@ class AdminLayout extends StatelessWidget {
       icon: Icons.notifications_outlined,
     ),
     _AdminRouteData(
+      label: 'طلبات التوثيق',
+      route: '/verifications',
+      icon: Icons.verified_user_outlined,
+    ),
+    _AdminRouteData(
       label: 'التقارير والإحصائيات',
       route: '/reports',
       icon: Icons.bar_chart_outlined,
@@ -183,6 +188,8 @@ class AdminLayout extends StatelessWidget {
       case '/complaints':
       case '/messages-support':
         return 'manage_requests';
+      case '/verifications':
+        return 'manage_users';
       default:
         return null;
     }

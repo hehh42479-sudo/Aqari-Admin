@@ -365,4 +365,53 @@ class AdminDataService {
       data: payload,
     );
   }
+
+  // ─── Verification requests ───────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchVerifications({
+    String status = 'all',
+  }) async {
+    final response = await _apiService.get<dynamic>(
+      '/admin/verification',
+      queryParameters: status != 'all' ? {'status': status} : null,
+    );
+    final list = ApiResponseNormalizer.asList(response.data);
+    return list.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  Future<void> reviewVerification(
+    String id,
+    String decision, // 'approved' | 'rejected'
+    String note,
+  ) async {
+    await _apiService.put<dynamic>(
+      '/admin/verification/$id',
+      data: {
+        'status': decision,
+        'admin_note': note,
+        'adminNote': note,
+      },
+    );
+  }
+
+  // ─── Employee subscription payments ─────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchEmployeePayments() async {
+    try {
+      final response =
+          await _apiService.get<dynamic>('/admin/employee-payments');
+      final list = ApiResponseNormalizer.asList(response.data);
+      return list.whereType<Map<String, dynamic>>().toList(growable: false);
+    } catch (_) {
+      // Fallback: return empty list if endpoint not yet wired
+      return [];
+    }
+  }
+
+  Future<void> confirmEmployeePayment(String paymentId) async {
+    await _apiService.put<dynamic>(
+      '/employees/confirm-payment',
+      data: {'payment_id': paymentId, 'status': 'paid'},
+    );
+  }
 }

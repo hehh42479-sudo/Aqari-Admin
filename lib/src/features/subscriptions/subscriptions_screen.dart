@@ -16,6 +16,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   String? _errorMessage;
   List<SubscriptionRecord> _subscriptions = <SubscriptionRecord>[];
 
+  // Employee payment section
+  bool _empLoading = false;
+  List<Map<String, dynamic>> _empPayments = [];
+
   @override
   void initState() {
     super.initState();
@@ -117,8 +121,43 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     }
   }
 
-  List<DataColumn> _buildColumns() {
-    return const <DataColumn>[
+  Future<void> _loadEmployeePayments() async {
+    setState(() => _empLoading = true);
+    try {
+      final service = context.read<AdminDataService>();
+      final items = await service.fetchEmployeePayments();
+      if (mounted) setState(() => _empPayments = items);
+    } catch (_) {
+      if (mounted) setState(() => _empPayments = []);
+    } finally {
+      if (mounted) setState(() => _empLoading = false);
+    }
+  }
+
+  Future<void> _confirmEmployeePayment(String paymentId) async {
+    try {
+      final service = context.read<AdminDataService>();
+      await service.confirmEmployeePayment(paymentId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم تأكيد الدفع ✓'),
+          backgroundColor: Color(0xFF2E7D32),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _loadEmployeePayments();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تعذر تأكيد الدفع: ${e.toString()}'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  List<DataColumn> _buildColumns() {    return const <DataColumn>[
       DataColumn(label: Text('اسم المشترك')),
       DataColumn(label: Text('نوع الباقة')),
       DataColumn(label: Text('تاريخ البداية')),
@@ -195,52 +234,182 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         ),
         const SizedBox(height: 18),
         Expanded(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    'الاشتراكات',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'عرض ومتابعة جميع الاشتراكات النشطة والمنتهية.',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 18),
-                  if (_isLoading)
-                    const Expanded(
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_errorMessage != null)
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              // ── Main subscriptions card ──────────────────────────────────────
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text(
+                        'الاشتراكات',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
-                    )
-                  else if (_subscriptions.isEmpty)
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          'لا توجد اشتراكات متاحة حالياً.',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'عرض ومتابعة جميع الاشتراكات النشطة والمنتهية.',
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                    )
-                  else
-                    _buildTablePane(_subscriptions),
-                ],
+                      const SizedBox(height: 18),
+                      if (_isLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_errorMessage != null)
+                        Center(
+                          child: Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        )
+                      else if (_subscriptions.isEmpty)
+                        Center(
+                          child: Text(
+                            'لا توجد اشتراكات متاحة حالياً.',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 320,
+                          child: _buildTablePane(_subscriptions),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+
+              const SizedBox(height: 18),
+
+              // ── Employee subscription payments card ──────────────────────────
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'دفعات اشتراكات الموظفين',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '20 دولار لكل موظف شهرياً — تحقق من الحوالات وأكّدها.',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _loadEmployeePayments,
+                            icon: const Icon(Icons.refresh),
+                            tooltip: 'تحديث',
+                          ),
+                          if (_empPayments.isEmpty)
+                            TextButton.icon(
+                              onPressed: _loadEmployeePayments,
+                              icon: const Icon(Icons.download_outlined),
+                              label: const Text('تحميل'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (_empLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_empPayments.isEmpty)
+                        Center(
+                          child: Text(
+                            'اضغط "تحميل" لعرض دفعات الموظفين.',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        )
+                      else
+                        ..._empPayments.map((p) {
+                          final id = p['id']?.toString() ?? '';
+                          final officeId = p['office_id']?.toString() ?? '';
+                          final amount = p['amount_usd']?.toString() ?? '0';
+                          final status = p['status']?.toString() ?? 'pending';
+                          final ref = p['payment_ref']?.toString() ?? '';
+                          final createdAt = p['created_at']?.toString() ?? '';
+                          final isPending = status == 'pending';
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isPending
+                                    ? Colors.orange.withValues(alpha: 0.4)
+                                    : Colors.green.withValues(alpha: 0.4),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text('مكتب #$officeId',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold)),
+                                      Text('\$$amount',
+                                          style: const TextStyle(
+                                              fontSize: 13)),
+                                      if (ref.isNotEmpty)
+                                        Text('حوالة: $ref',
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black54)),
+                                      Text(createdAt,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.black38)),
+                                    ],
+                                  ),
+                                ),
+                                if (isPending)
+                                  ElevatedButton(
+                                    onPressed: id.isNotEmpty
+                                        ? () => _confirmEmployeePayment(id)
+                                        : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green.shade600,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                    ),
+                                    child: const Text('تأكيد الدفع'),
+                                  )
+                                else
+                                  const Chip(
+                                    label: Text('مدفوع ✓'),
+                                    backgroundColor: Color(0xFFE8F5E9),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],

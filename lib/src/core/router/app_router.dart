@@ -11,6 +11,7 @@ import '../../features/statistics/statistics_screen.dart';
 import '../../features/subscriptions/subscriptions_screen.dart';
 import '../../features/supervisors/supervisors_screen.dart';
 import '../../features/users/user_management_screen.dart';
+import '../../features/verifications/verifications_screen.dart';
 import '../../../screens/login_screen.dart';
 import '../state/admin_session_controller.dart';
 import '../widgets/admin_layout.dart';
@@ -172,6 +173,10 @@ GoRouter createAdminRouter(AdminSessionController sessionController) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/verifications',
+            builder: (context, state) => const VerificationsScreen(),
           ),
         ],
       ),
