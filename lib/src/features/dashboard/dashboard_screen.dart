@@ -82,6 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       seekersCount: 0,
       supervisorsCount: 0,
       featuredProperties: 0,
+      soldProperties: 0,
+      rentedProperties: 0,
       monthlyRevenue: 0,
       raw: <String, dynamic>{},
     );
@@ -128,6 +130,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         value: _formatNumber(effectiveStats.featuredProperties),
         icon: Icons.star_outline_rounded,
         accent: const Color(0xFF9A6B00),
+      ),
+      _SummaryItem(
+        title: 'العقارات المُباعة',
+        value: _formatNumber(effectiveStats.soldProperties),
+        icon: Icons.sell_outlined,
+        accent: const Color(0xFF1D7CF2),
+      ),
+      _SummaryItem(
+        title: 'العقارات المؤجرة',
+        value: _formatNumber(effectiveStats.rentedProperties),
+        icon: Icons.key_outlined,
+        accent: const Color(0xFF7B61FF),
       ),
       _SummaryItem(
         title: 'الإيراد الشهري',
@@ -212,6 +226,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _InsightRow(label: 'العقارات النشطة', value: _formatNumber(stats?.activeProperties ?? 0)),
                     _InsightRow(label: 'بانتظار المراجعة', value: _formatNumber(stats?.pendingProperties ?? 0)),
                     _InsightRow(label: 'العقارات المميزة', value: _formatNumber(stats?.featuredProperties ?? 0)),
+                    _InsightRow(label: 'المُباعة', value: _formatNumber(stats?.soldProperties ?? 0)),
+                    _InsightRow(label: 'المؤجرة', value: _formatNumber(stats?.rentedProperties ?? 0)),
                   ],
                 );
                 final rightPanel = _InsightsPanel(
