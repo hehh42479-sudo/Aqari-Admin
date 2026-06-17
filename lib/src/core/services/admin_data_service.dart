@@ -11,6 +11,8 @@ class AdminStats {
     required this.seekersCount,
     required this.supervisorsCount,
     required this.featuredProperties,
+    required this.soldProperties,
+    required this.rentedProperties,
     required this.monthlyRevenue,
     required this.raw,
   });
@@ -23,6 +25,8 @@ class AdminStats {
   final int seekersCount;
   final int supervisorsCount;
   final int featuredProperties;
+  final int soldProperties;
+  final int rentedProperties;
   final double monthlyRevenue;
   final Map<String, dynamic> raw;
 
@@ -76,6 +80,16 @@ class AdminStats {
         'featured_properties',
         'featured',
       ]),
+      soldProperties: _readInt(json, <String>[
+        'soldProperties',
+        'sold_properties',
+        'sold',
+      ]),
+      rentedProperties: _readInt(json, <String>[
+        'rentedProperties',
+        'rented_properties',
+        'rented',
+      ]),
       monthlyRevenue: _readDouble(json, <String>[
         'monthlyRevenue',
         'revenue',
@@ -96,6 +110,8 @@ class AdminStats {
       seekersCount: 0,
       supervisorsCount: 0,
       featuredProperties: 0,
+      soldProperties: 0,
+      rentedProperties: 0,
       monthlyRevenue: 0,
       raw: <String, dynamic>{},
     );
@@ -413,5 +429,43 @@ class AdminDataService {
       '/employees/confirm-payment',
       data: {'payment_id': paymentId, 'status': 'paid'},
     );
+  }
+
+  // ─── Property management convenience methods ─────────────────────────────────
+
+  /// Update a property's status on the backend.
+  /// [apiStatus] values: 'approved', 'rejected', 'featured', 'sold', 'rented',
+  ///   'pending_edit', 'suspended'.
+  /// Pass optional [rejectionReason] or [adminNote] for rejection / edit-request.
+  Future<void> updatePropertyStatus(
+    String propertyId,
+    String apiStatus, {
+    String? rejectionReason,
+    String? adminNote,
+  }) async {
+    final data = <String, dynamic>{'status': apiStatus};
+    if (rejectionReason != null && rejectionReason.isNotEmpty) {
+      data['rejection_reason'] = rejectionReason;
+      data['rejectionReason'] = rejectionReason;
+    }
+    if (adminNote != null && adminNote.isNotEmpty) {
+      data['admin_note'] = adminNote;
+    }
+    await _apiService.put<dynamic>(
+      '/admin/properties/$propertyId/status',
+      data: data,
+    );
+  }
+
+  /// Permanently delete a property.
+  Future<void> deleteProperty(String propertyId) async {
+    await _apiService.delete<dynamic>('/admin/properties/$propertyId');
+  }
+
+  /// Fetch a single property's details.
+  Future<Map<String, dynamic>> fetchPropertyDetails(String propertyId) async {
+    final response =
+        await _apiService.get<dynamic>('/admin/properties/$propertyId');
+    return ApiResponseNormalizer.asMap(response.data);
   }
 }
