@@ -153,6 +153,7 @@ class Property {
         case 'pending_review':
         case 'awaiting':
         case 'under_review':
+        case 'pending_edit':
           return PropertyStatus.pending;
         case 'active':
         case 'approved':
@@ -232,6 +233,23 @@ class Property {
     }
 
     // Image URLs
+    // Helper: parse a possibly-stringified JSON array string into a List<String>
+    List<String> unwrapStringifiedArray(String s) {
+      final t = s.trim();
+      if (!t.startsWith('[')) return [t];
+      try {
+        final inner = t.substring(1, t.length - 1).trim();
+        if (inner.isEmpty) return [];
+        return inner
+            .split(',')
+            .map((e) => e.trim().replaceAll('"', '').replaceAll("'", '').trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } catch (_) {
+        return [t];
+      }
+    }
+
     List<String> extractImages() {
       final urls = <String>[];
       const listKeys = ['images', 'image_urls', 'photos', 'media', 'gallery'];
@@ -246,6 +264,14 @@ class Property {
             }
           }
           if (urls.isNotEmpty) return urls;
+        }
+        // Handle stringified JSON array: '["uploads/img.png","uploads/img2.png"]'
+        if (raw is String && raw.trim().isNotEmpty) {
+          final parsed = unwrapStringifiedArray(raw.trim());
+          if (parsed.isNotEmpty) {
+            urls.addAll(parsed);
+            return urls;
+          }
         }
       }
       const singleKeys = ['thumbnail', 'image', 'imageUrl', 'image_url', 'cover', 'photo'];
@@ -326,9 +352,29 @@ const List<_Tab> _kTabs = [
 
 // ── Resolve media URL ─────────────────────────────────────────────────────────
 
+/// Unwraps a possibly-stringified JSON array and returns the first element.
+/// e.g. '["uploads/img.png"]' → 'uploads/img.png'
+String _unwrapMediaString(String v) {
+  final trimmed = v.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      // Minimal JSON array parse without dart:convert import overhead —
+      // strip brackets, split on commas, clean first item.
+      final inner = trimmed.substring(1, trimmed.length - 1).trim();
+      if (inner.isEmpty) return '';
+      // Handle both ["path"] and ['path'] formats
+      final first = inner.split(',').first.trim();
+      return first.replaceAll('"', '').replaceAll("'", '').trim();
+    } catch (_) {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
+
 String _resolveUrl(String? raw) {
   const base = 'https://aqari-backend.onrender.com';
-  final v = raw?.trim() ?? '';
+  final v = _unwrapMediaString(raw?.trim() ?? '');
   if (v.isEmpty) return '';
   final lower = v.toLowerCase();
   if (lower == 'null' || lower == 'undefined') return '';
@@ -1032,7 +1078,7 @@ class _StatusBadge extends StatelessWidget {
     PropertyStatus.rented:   'مؤجر',
     PropertyStatus.suspended:'موقوف',
     PropertyStatus.all:      'الكل',
-    PropertyStatus.unknown:  'غير محدد',
+    PropertyStatus.unknown:  'قيد التعديل',
   };
 
   @override
@@ -1088,25 +1134,34 @@ class _PropertyRowActions extends StatelessWidget {
     ];
 
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      // Quick approve for pending
-      if (property.isPending)
-        _ActionBtn(
-          icon: Icons.check_rounded,
-          color: const Color(0xFF17B26A),
-          tooltip: 'موافقة',
-          onTap: () => onAction(property, _PropertyAction.approve),
-        ),
-      if (property.isPending) const SizedBox(width: 6),
-      if (property.isPending)
-        _ActionBtn(
-          icon: Icons.close_rounded,
-          color: const Color(0xFFD92D20),
-          tooltip: 'رفض',
-          onTap: () => onAction(property, _PropertyAction.reject),
-        ),
-      if (property.isPending) const SizedBox(width: 6),
+      // ── Approve (قبول) — always visible ──────────────────────────────────
+      _ActionBtn(
+        icon: Icons.check_rounded,
+        color: const Color(0xFF17B26A),
+        tooltip: 'قبول',
+        onTap: () => onAction(property, _PropertyAction.approve),
+      ),
+      const SizedBox(width: 5),
 
-      // More menu
+      // ── Request Edit (طلب تعديل) — always visible ─────────────────────────
+      _ActionBtn(
+        icon: Icons.edit_note_rounded,
+        color: const Color(0xFF1D7CF2),
+        tooltip: 'طلب تعديل',
+        onTap: () => onAction(property, _PropertyAction.requestEdit),
+      ),
+      const SizedBox(width: 5),
+
+      // ── Delete (حذف) — always visible ────────────────────────────────────
+      _ActionBtn(
+        icon: Icons.delete_outline_rounded,
+        color: const Color(0xFFD92D20),
+        tooltip: 'حذف',
+        onTap: () => onAction(property, _PropertyAction.delete),
+      ),
+      const SizedBox(width: 5),
+
+      // ── More menu (remaining actions) ────────────────────────────────────
       PopupMenuButton<_PropertyAction>(
         tooltip: 'المزيد',
         icon: const Icon(Icons.more_horiz_rounded, size: 20),
@@ -1530,7 +1585,13 @@ class _DetailActionBtn extends StatelessWidget {
 
 String _fmtDate(DateTime? dt) {
   if (dt == null) return 'غير محدد';
-  const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
-      'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  return '${dt.day.toString().padLeft(2,'0')} ${months[dt.month-1]} ${dt.year}';
+  // Format: YYYY-MM-DD  HH:mm AM/PM
+  final y  = dt.year.toString().padLeft(4, '0');
+  final mo = dt.month.toString().padLeft(2, '0');
+  final d  = dt.day.toString().padLeft(2, '0');
+  final raw = dt.hour;
+  final h  = (raw % 12 == 0 ? 12 : raw % 12).toString().padLeft(2, '0');
+  final mi = dt.minute.toString().padLeft(2, '0');
+  final ampm = raw < 12 ? 'AM' : 'PM';
+  return '$y-$mo-$d  $h:$mi $ampm';
 }
