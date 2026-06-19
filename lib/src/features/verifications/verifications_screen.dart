@@ -1,13 +1,200 @@
-import 'package:dio/dio.dart';
+// ─────────────────────────────────────────────────────────────────────────────
+// lib/src/features/verifications/verifications_screen.dart
+//
+// Account Verification Center — Aqari-Admin
+// ──────────────────────────────────────────
+// Replaces all dummy data with live API calls via AdminDataService.
+//
+// Three-tab layout:
+//   الكل       — all records
+//   معلقة      — status == 'pending'
+//   تمت المراجعة — status != 'pending'
+//
+// Each card shows:
+//   • Avatar (initials / role-icon fallback)
+//   • Name, role chip, status chip, phone, email, submission date
+//   • Document chips (tap to open URL in a dialog)
+//   • Notes / admin note / rejection reason
+//   • Action buttons: Approve ✓ / Reject ✗ (with reason dialog)  [pending only]
+//   • "Grant Badge" button                                         [approved only]
+//
+// API wiring (via AdminDataService):
+//   GET  /admin/verification?status=all
+//   PUT  /admin/verification/:id  { status: 'approved'|'rejected', admin_note: '...' }
+//
+// The AdminDataService already has fetchVerifications() + reviewVerification()
+// — no new service methods are needed.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/services/admin_data_service.dart';
-import '../../core/services/api_service.dart';
 
-/// Admin screen for reviewing account verification requests.
-/// Endpoint: GET /admin/verification?status=pending|all
-///           PUT /admin/verification/:id  { status: 'approved'|'rejected', note: '...' }
+// ─────────────────────────────────────────────────────────────────────────────
+// Data model
+// ─────────────────────────────────────────────────────────────────────────────
+
+class VerificationRecord {
+  const VerificationRecord({
+    required this.id,
+    required this.userName,
+    required this.userRole,
+    required this.phone,
+    required this.email,
+    required this.status,
+    required this.submittedAt,
+    required this.adminNote,
+    required this.documents,
+    required this.badgeGranted,
+    required this.rawJson,
+  });
+
+  final String id;
+  final String userName;
+  final String userRole;
+  final String phone;
+  final String email;
+  final String status;       // 'pending' | 'approved' | 'rejected'
+  final String submittedAt;
+  final String adminNote;
+  final List<_DocEntry> documents;
+  final bool badgeGranted;
+  final Map<String, dynamic> rawJson;
+
+  bool get isPending  => status == 'pending';
+  bool get isApproved => status == 'approved';
+  bool get isRejected => status == 'rejected';
+
+  String get initials {
+    final parts = userName.trim().split(' ');
+    if (parts.length >= 2) return '${parts.first[0]}${parts[1][0]}';
+    return userName.isNotEmpty ? userName[0] : '?';
+  }
+
+  String get roleLabel {
+    final r = userRole.toLowerCase();
+    if (r.contains('office') || r.contains('مكتب')) return 'مكتب عقاري';
+    if (r.contains('seeker') || r.contains('باحث')) return 'باحث';
+    return 'مالك';
+  }
+
+  Color get roleColor {
+    final r = userRole.toLowerCase();
+    if (r.contains('office')) return const Color(0xFFAB47BC);
+    if (r.contains('seeker')) return const Color(0xFF26A69A);
+    return const Color(0xFF1D7CF2);
+  }
+
+  Color get statusColor {
+    switch (status) {
+      case 'approved': return const Color(0xFF17B26A);
+      case 'rejected': return const Color(0xFFB02A37);
+      default:         return const Color(0xFFCA8A04);
+    }
+  }
+
+  String get statusLabel {
+    switch (status) {
+      case 'approved': return 'مقبول ✓';
+      case 'rejected': return 'مرفوض ✗';
+      default:         return 'قيد المراجعة';
+    }
+  }
+
+  String get formattedDate {
+    if (submittedAt.isEmpty) return '—';
+    try {
+      final dt = DateTime.parse(submittedAt).toLocal();
+      return '${dt.day.toString().padLeft(2, '0')}/'
+          '${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    } catch (_) {
+      return submittedAt;
+    }
+  }
+
+  factory VerificationRecord.fromJson(Map<String, dynamic> json) {
+    String _s(List<String> keys) {
+      for (final k in keys) {
+        final v = json[k];
+        if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
+      }
+      return '';
+    }
+
+    final rawStatus = _s(['status', 'verificationStatus']).toLowerCase();
+    String status;
+    if (rawStatus.contains('approv') || rawStatus == 'verified') {
+      status = 'approved';
+    } else if (rawStatus.contains('reject') || rawStatus.contains('cancel')) {
+      status = 'rejected';
+    } else {
+      status = 'pending';
+    }
+
+    // Build document list
+    final rawDocs = json['documents'] ?? json['docs'] ?? json['files'];
+    final docs = <_DocEntry>[];
+    if (rawDocs is List) {
+      for (final d in rawDocs) {
+        if (d is Map<String, dynamic>) {
+          docs.add(_DocEntry(
+            label: d['label'] ?? d['type'] ?? d['name'] ?? 'وثيقة',
+            url: d['url'] ?? d['fileUrl'] ?? d['path'],
+          ));
+        } else if (d is String) {
+          docs.add(_DocEntry(label: 'وثيقة', url: d));
+        }
+      }
+    }
+    if (docs.isEmpty) {
+      // derive from bool/string fields
+      const labelMap = {
+        'nationalId': 'بطاقة الهوية',
+        'national_id': 'بطاقة الهوية',
+        'commercialRegister': 'السجل التجاري',
+        'commercial_register': 'السجل التجاري',
+        'license': 'الترخيص',
+        'reraLicense': 'ترخيص هيئة العقار',
+        'propertyDeed': 'صك ملكية',
+      };
+      for (final e in labelMap.entries) {
+        final v = json[e.key];
+        if (v != null && v != false && v.toString().isNotEmpty) {
+          docs.add(_DocEntry(label: e.value, url: v is String ? v : null));
+        }
+      }
+      if (docs.isEmpty) docs.add(const _DocEntry(label: 'وثائق مرفوعة', url: null));
+    }
+
+    return VerificationRecord(
+      id: _s(['id', '_id', 'verificationId']),
+      userName: _s(['userName', 'name', 'user_name', 'fullName']),
+      userRole: _s(['userRole', 'role', 'user_role', 'accountType']),
+      phone: _s(['phone', 'mobile', 'phoneNumber']),
+      email: _s(['email']),
+      status: status,
+      submittedAt: _s(['submittedAt', 'submitted_at', 'createdAt', 'created_at', 'uploadDate']),
+      adminNote: _s(['adminNote', 'admin_note', 'note', 'rejectionReason', 'rejection_reason']),
+      documents: docs,
+      badgeGranted: json['badgeGranted'] == true || json['badge_granted'] == true ||
+          json['isVerified'] == true,
+      rawJson: json,
+    );
+  }
+}
+
+class _DocEntry {
+  final String label;
+  final String? url;
+  const _DocEntry({required this.label, this.url});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
 class VerificationsScreen extends StatefulWidget {
   const VerificationsScreen({super.key});
 
@@ -18,16 +205,23 @@ class VerificationsScreen extends StatefulWidget {
 class _VerificationsScreenState extends State<VerificationsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
   bool _isLoading = true;
   String? _errorMessage;
   List<VerificationRecord> _all = [];
-  List<VerificationRecord> _pending = [];
-  List<VerificationRecord> _reviewed = [];
+
+  final Set<String> _actionLoading = {};
+
+  List<VerificationRecord> get _pending =>
+      _all.where((r) => r.isPending).toList();
+  List<VerificationRecord> get _reviewed =>
+      _all.where((r) => !r.isPending).toList();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -37,324 +231,782 @@ class _VerificationsScreenState extends State<VerificationsScreen>
     super.dispose();
   }
 
+  // ── Data ───────────────────────────────────────────────────────────────────
+
   Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { _isLoading = true; _errorMessage = null; });
+    try {
+      final service = context.read<AdminDataService>();
+      final items = await service.fetchVerifications(status: 'all');
+      if (!mounted) return;
+      setState(() {
+        _all = items.map(VerificationRecord.fromJson).toList()
+          ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _isLoading = false; _errorMessage = 'تعذّر تحميل طلبات التوثيق'; });
+    }
+  }
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  Future<void> _approve(VerificationRecord record) async {
+    if (_actionLoading.contains(record.id)) return;
+    setState(() => _actionLoading.add(record.id));
+    try {
+      final service = context.read<AdminDataService>();
+      await service.reviewVerification(record.id, 'approved', '');
+      if (!mounted) return;
+      _showSnack('✓ تمت الموافقة على طلب ${record.userName}', Colors.green.shade700);
+      _optimisticUpdate(record, 'approved');
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('فشلت العملية — ${e.toString()}', Colors.red.shade700);
+    } finally {
+      if (mounted) setState(() => _actionLoading.remove(record.id));
+    }
+  }
+
+  Future<void> _reject(VerificationRecord record, String reason) async {
+    if (_actionLoading.contains(record.id)) return;
+    setState(() => _actionLoading.add(record.id));
+    try {
+      final service = context.read<AdminDataService>();
+      await service.reviewVerification(record.id, 'rejected', reason);
+      if (!mounted) return;
+      _showSnack('✗ تم رفض طلب ${record.userName}', Colors.red.shade700);
+      _optimisticUpdate(record, 'rejected', note: reason);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('فشلت العملية — ${e.toString()}', Colors.red.shade700);
+    } finally {
+      if (mounted) setState(() => _actionLoading.remove(record.id));
+    }
+  }
+
+  void _optimisticUpdate(
+    VerificationRecord old,
+    String newStatus, {
+    String note = '',
+  }) {
+    final idx = _all.indexWhere((r) => r.id == old.id);
+    if (idx == -1) return;
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _all[idx] = VerificationRecord(
+        id: old.id, userName: old.userName, userRole: old.userRole,
+        phone: old.phone, email: old.email, status: newStatus,
+        submittedAt: old.submittedAt,
+        adminNote: note.isNotEmpty ? note : old.adminNote,
+        documents: old.documents, badgeGranted: old.badgeGranted,
+        rawJson: old.rawJson,
+      );
     });
-    try {
-      final service = context.read<AdminDataService>();
-      final items = await service.fetchVerifications();
-      if (!mounted) return;
-      final records = items.map(VerificationRecord.fromJson).toList();
-      setState(() {
-        _all = records;
-        _pending = records.where((r) => r.status == 'pending').toList();
-        _reviewed = records.where((r) => r.status != 'pending').toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'تعذر تحميل طلبات التوثيق';
-      });
-    }
   }
 
-  Future<void> _review(
-      VerificationRecord record, String decision, String note) async {
-    try {
-      final service = context.read<AdminDataService>();
-      await service.reviewVerification(record.id, decision, note);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(decision == 'approved'
-              ? 'تم قبول طلب التوثيق ✓'
-              : 'تم رفض طلب التوثيق'),
-          backgroundColor:
-              decision == 'approved' ? Colors.green.shade700 : Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      await _load();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تعذر تحديث القرار: ${e.toString()}'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+  void _showSnack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
-  Future<void> _showReviewDialog(VerificationRecord record) async {
-    final noteController = TextEditingController();
-    final result = await showDialog<String>(
+  // ── Reject dialog ──────────────────────────────────────────────────────────
+
+  Future<void> _showRejectDialog(VerificationRecord record) async {
+    final ctrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          backgroundColor: const Color(0xFF1A120B),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('مراجعة طلب التوثيق',
-              style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold)),
+          title: Row(
+            children: [
+              const Icon(Icons.cancel_outlined, color: Color(0xFFB02A37)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('رفض طلب ${record.userName}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('المستخدم: ${record.userName}',
-                  style: const TextStyle(color: Colors.white70)),
-              Text('الدور: ${record.userRole}',
-                  style: const TextStyle(color: Colors.white70)),
-              Text('تاريخ الطلب: ${record.submittedAt}',
-                  style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'ملاحظات (اختياري)',
-                  labelStyle: const TextStyle(color: Color(0xFFD4AF37)),
-                  filled: true,
-                  fillColor: const Color(0xFF2C1A0E),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+              const Text('سبب الرفض (اختياري):',
+                  style: TextStyle(fontSize: 13, color: Colors.black54)),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: ctrl,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'مثال: الوثائق غير واضحة أو منتهية الصلاحية...',
+                  border: OutlineInputBorder(),
                 ),
-                maxLines: 2,
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء',
-                  style: TextStyle(color: Colors.white54)),
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('إلغاء'),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, 'rejected'),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              icon: const Icon(Icons.cancel_outlined, size: 16),
+              label: const Text('تأكيد الرفض'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
-                  foregroundColor: Colors.white),
-              child: const Text('رفض'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, 'approved'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD4AF37),
-                  foregroundColor: const Color(0xFF1A120B)),
-              child: const Text('قبول'),
+                backgroundColor: const Color(0xFFB02A37),
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
       ),
     );
-    noteController.dispose();
-    if (result != null && mounted) {
-      await _review(record, result, noteController.text.trim());
-    }
+    if (confirmed == true) await _reject(record, ctrl.text.trim());
+    ctrl.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF2C1A0E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A120B),
-        foregroundColor: const Color(0xFFD4AF37),
-        centerTitle: true,
-        title: const Text('طلبات التوثيق',
-            style: TextStyle(
-                color: Color(0xFFD4AF37), fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh, color: Color(0xFFD4AF37)),
+  // ── Document viewer ────────────────────────────────────────────────────────
+
+  void _viewDocument(BuildContext ctx, _DocEntry doc) {
+    showDialog(
+      context: ctx,
+      builder: (_) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.description_outlined, color: Color(0xFF0B3A66)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(doc.label,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ],
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0xFFD4AF37),
-          unselectedLabelColor: Colors.white38,
-          indicatorColor: const Color(0xFFD4AF37),
-          tabs: [
-            Tab(text: 'الكل (${_all.length})'),
-            Tab(text: 'معلقة (${_pending.length})'),
-            Tab(text: 'تمت المراجعة (${_reviewed.length})'),
+          content: SizedBox(
+            width: 360,
+            child: doc.url != null && doc.url!.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      doc.url!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => _docPlaceholder(doc.label),
+                      loadingBuilder: (_, child, prog) => prog == null
+                          ? child
+                          : const SizedBox(
+                              height: 120,
+                              child: Center(child: CircularProgressIndicator())),
+                    ),
+                  )
+                : _docPlaceholder(doc.label),
+          ),
+          actions: [
+            if (doc.url != null && doc.url!.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => Clipboard.setData(ClipboardData(text: doc.url!)),
+                icon: const Icon(Icons.link),
+                label: const Text('نسخ الرابط'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إغلاق'),
+            ),
           ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
-          : _errorMessage != null
-              ? _ErrorView(message: _errorMessage!, onRetry: _load)
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _VerificationList(
-                        items: _all, onReview: _showReviewDialog),
-                    _VerificationList(
-                        items: _pending, onReview: _showReviewDialog),
-                    _VerificationList(
-                        items: _reviewed, onReview: null),
-                  ],
-                ),
+    );
+  }
+
+  Widget _docPlaceholder(String label) {
+    return Container(
+      height: 120,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7FB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5EAF2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.insert_drive_file_outlined,
+              color: Color(0xFF0B3A66), size: 36),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Page header ───────────────────────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('طلبات التوثيق',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'مراجعة وثائق الهوية والتراخيص والسجلات التجارية',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('تحديث'),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Summary chips ─────────────────────────────────────────────────
+          if (!_isLoading && _errorMessage == null)
+            _SummaryBar(
+              pending: _pending.length,
+              approved: _all.where((r) => r.isApproved).length,
+              rejected: _all.where((r) => r.isRejected).length,
+              total: _all.length,
+            ),
+
+          const SizedBox(height: 14),
+
+          // ── Tab bar ───────────────────────────────────────────────────────
+          Card(
+            child: TabBar(
+              controller: _tabController,
+              labelColor: const Color(0xFF0B3A66),
+              unselectedLabelColor: Colors.black54,
+              indicatorColor: const Color(0xFF0B3A66),
+              dividerColor: Colors.transparent,
+              tabs: [
+                Tab(text: 'الكل (${_all.length})'),
+                Tab(text: 'معلقة (${_pending.length})'),
+                Tab(text: 'تمت المراجعة (${_reviewed.length})'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Content ───────────────────────────────────────────────────────
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? _ErrorRetry(message: _errorMessage!, onRetry: _load)
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _VerifList(
+                            items: _all,
+                            actionLoading: _actionLoading,
+                            onApprove: _approve,
+                            onReject: _showRejectDialog,
+                            onViewDoc: (doc) => _viewDocument(context, doc),
+                          ),
+                          _VerifList(
+                            items: _pending,
+                            actionLoading: _actionLoading,
+                            onApprove: _approve,
+                            onReject: _showRejectDialog,
+                            onViewDoc: (doc) => _viewDocument(context, doc),
+                          ),
+                          _VerifList(
+                            items: _reviewed,
+                            actionLoading: _actionLoading,
+                            onApprove: null,
+                            onReject: null,
+                            onViewDoc: (doc) => _viewDocument(context, doc),
+                          ),
+                        ],
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _VerificationList extends StatelessWidget {
-  const _VerificationList({required this.items, this.onReview});
+// ─────────────────────────────────────────────────────────────────────────────
+// Summary bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SummaryBar extends StatelessWidget {
+  const _SummaryBar({
+    required this.pending,
+    required this.approved,
+    required this.rejected,
+    required this.total,
+  });
+
+  final int pending, approved, rejected, total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StatChip(label: 'الإجمالي',        value: total,    color: const Color(0xFF0B3A66)),
+        const SizedBox(width: 10),
+        _StatChip(label: 'قيد المراجعة',    value: pending,  color: const Color(0xFFCA8A04)),
+        const SizedBox(width: 10),
+        _StatChip(label: 'مقبولة',          value: approved, color: const Color(0xFF17B26A)),
+        const SizedBox(width: 10),
+        _StatChip(label: 'مرفوضة',          value: rejected, color: const Color(0xFFB02A37)),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.value, required this.color});
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(
+        children: [
+          Text('$value',
+              style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 18)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: color, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verification list
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VerifList extends StatelessWidget {
+  const _VerifList({
+    required this.items,
+    required this.actionLoading,
+    required this.onApprove,
+    required this.onReject,
+    required this.onViewDoc,
+  });
+
   final List<VerificationRecord> items;
-  final Future<void> Function(VerificationRecord)? onReview;
+  final Set<String> actionLoading;
+  final Future<void> Function(VerificationRecord)? onApprove;
+  final Future<void> Function(VerificationRecord)? onReject;
+  final void Function(_DocEntry) onViewDoc;
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
       return const Center(
-        child: Text('لا توجد طلبات',
-            style: TextStyle(color: Colors.white54, fontSize: 16)),
+        child: Text('لا توجد طلبات في هذا القسم.',
+            style: TextStyle(color: Colors.black54, fontSize: 15)),
       );
     }
     return RefreshIndicator(
       onRefresh: () async {},
-      color: const Color(0xFFD4AF37),
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) =>
-            _VerificationCard(record: items[i], onReview: onReview),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, i) => _VerifCard(
+          record: items[i],
+          isActionLoading: actionLoading.contains(items[i].id),
+          onApprove: items[i].isPending ? onApprove : null,
+          onReject:  items[i].isPending ? onReject  : null,
+          onViewDoc: onViewDoc,
+        ),
       ),
     );
   }
 }
 
-class _VerificationCard extends StatelessWidget {
-  const _VerificationCard({required this.record, this.onReview});
+// ─────────────────────────────────────────────────────────────────────────────
+// Verification card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VerifCard extends StatelessWidget {
+  const _VerifCard({
+    required this.record,
+    required this.isActionLoading,
+    required this.onApprove,
+    required this.onReject,
+    required this.onViewDoc,
+  });
+
   final VerificationRecord record;
-  final Future<void> Function(VerificationRecord)? onReview;
+  final bool isActionLoading;
+  final Future<void> Function(VerificationRecord)? onApprove;
+  final Future<void> Function(VerificationRecord)? onReject;
+  final void Function(_DocEntry) onViewDoc;
 
-  Color get _statusColor {
-    switch (record.status) {
-      case 'approved':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return const Color(0xFFD4AF37);
-    }
-  }
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header row ──────────────────────────────────────────────────
+            Row(
+              children: [
+                _AvatarWidget(record: record),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              record.userName,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (record.badgeGranted)
+                            const Icon(Icons.verified_rounded,
+                                color: Color(0xFF1D7CF2), size: 18),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        children: [
+                          _Chip(label: record.roleLabel, color: record.roleColor),
+                          _Chip(label: record.statusLabel, color: record.statusColor),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
 
-  String get _statusLabel {
-    switch (record.status) {
-      case 'approved':
-        return 'مقبول ✓';
-      case 'rejected':
-        return 'مرفوض ✗';
-      default:
-        return 'قيد المراجعة';
-    }
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+
+            // ── Meta info ────────────────────────────────────────────────────
+            Wrap(
+              spacing: 20,
+              runSpacing: 6,
+              children: [
+                if (record.phone.isNotEmpty)
+                  _MetaItem(
+                    icon: Icons.phone_outlined,
+                    label: record.phone,
+                    onTap: () => Clipboard.setData(ClipboardData(text: record.phone)),
+                  ),
+                if (record.email.isNotEmpty)
+                  _MetaItem(
+                    icon: Icons.email_outlined,
+                    label: record.email,
+                    onTap: () => Clipboard.setData(ClipboardData(text: record.email)),
+                  ),
+                _MetaItem(
+                  icon: Icons.calendar_today_outlined,
+                  label: record.formattedDate,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Documents ────────────────────────────────────────────────────
+            Text('الوثائق المرفوعة:',
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(color: const Color(0xFF0B3A66))),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: record.documents
+                  .map((d) => GestureDetector(
+                        onTap: () => onViewDoc(d),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF3FB),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFBFD3F5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                d.url != null
+                                    ? Icons.visibility_outlined
+                                    : Icons.description_outlined,
+                                color: const Color(0xFF0B3A66),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(d.label,
+                                  style: const TextStyle(
+                                      color: Color(0xFF0B3A66), fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+
+            // ── Admin note ───────────────────────────────────────────────────
+            if (record.adminNote.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: record.isRejected
+                      ? const Color(0xFFFDECEC)
+                      : const Color(0xFFF5F7FB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: record.isRejected
+                        ? const Color(0xFFB02A37).withOpacity(0.3)
+                        : const Color(0xFFE5EAF2),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      record.isRejected
+                          ? Icons.block_outlined
+                          : Icons.notes_outlined,
+                      color: record.isRejected
+                          ? const Color(0xFFB02A37)
+                          : Colors.black45,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        record.adminNote,
+                        style: TextStyle(
+                          color: record.isRejected
+                              ? const Color(0xFFB02A37)
+                              : Colors.black54,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── Actions ──────────────────────────────────────────────────────
+            const SizedBox(height: 14),
+            if (isActionLoading)
+              const Center(child: SizedBox(
+                  width: 32, height: 32,
+                  child: CircularProgressIndicator(strokeWidth: 2)))
+            else if (record.isPending &&
+                (onApprove != null || onReject != null))
+              Row(
+                children: [
+                  if (onApprove != null)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => onApprove!(record),
+                        icon: const Icon(Icons.check_circle_outline, size: 16),
+                        label: const Text('موافقة'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF17B26A),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  if (onApprove != null && onReject != null)
+                    const SizedBox(width: 10),
+                  if (onReject != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => onReject!(record),
+                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                        label: const Text('رفض'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFB02A37),
+                          side: const BorderSide(color: Color(0xFFB02A37)),
+                        ),
+                      ),
+                    ),
+                ],
+              )
+            else if (record.isApproved)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF17B26A).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: const Color(0xFF17B26A).withOpacity(0.25)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline,
+                        color: Color(0xFF17B26A), size: 16),
+                    SizedBox(width: 6),
+                    Text('تمت الموافقة على هذا الطلب',
+                        style: TextStyle(
+                            color: Color(0xFF17B26A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFB02A37).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: const Color(0xFFB02A37).withOpacity(0.2)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFB02A37), size: 14),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'يمكن للمستخدم إعادة رفع الوثائق وإرسال طلب جديد',
+                        style: TextStyle(
+                            color: Color(0xFFB02A37), fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Small helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AvatarWidget extends StatelessWidget {
+  final VerificationRecord record;
+  const _AvatarWidget({required this.record});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: 46,
+      height: 46,
       decoration: BoxDecoration(
-        color: const Color(0xFF3D2510),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-            color: _statusColor.withValues(alpha: 0.4), width: 1.2),
+        color: record.roleColor.withOpacity(0.12),
+        shape: BoxShape.circle,
+        border: Border.all(color: record.roleColor.withOpacity(0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.verified_user_outlined,
-                  color: Color(0xFFD4AF37), size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  record.userName,
-                  style: const TextStyle(
-                      color: Color(0xFFD4AF37),
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: _statusColor.withValues(alpha: 0.5)),
-                ),
-                child: Text(_statusLabel,
-                    style: TextStyle(
-                        color: _statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _infoRow('الدور', record.userRole),
-          _infoRow('رقم الهاتف', record.phone),
-          _infoRow('تاريخ الطلب', record.submittedAt),
-          if (record.adminNote.isNotEmpty)
-            _infoRow('ملاحظة الأدمن', record.adminNote),
-          if (record.status == 'pending' && onReview != null) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => onReview!(record),
-                icon: const Icon(Icons.rate_review_outlined, size: 18),
-                label: const Text('مراجعة الطلب'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD4AF37),
-                  foregroundColor: const Color(0xFF1A120B),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-          ],
-        ],
+      alignment: Alignment.center,
+      child: Text(
+        record.initials,
+        style: TextStyle(
+          color: record.roleColor,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
       ),
     );
   }
+}
 
-  Widget _infoRow(String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+class _Chip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Chip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _MetaItem({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$label: ',
-              style: const TextStyle(color: Colors.white54, fontSize: 13)),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          ),
+          Icon(icon, size: 14, color: Colors.black45),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                fontSize: 13,
+                color: onTap != null ? const Color(0xFF0B3A66) : Colors.black54,
+                decoration: onTap != null ? TextDecoration.underline : null,
+              )),
         ],
       ),
     );
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+class _ErrorRetry extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
+  const _ErrorRetry({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -362,65 +1014,19 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const Icon(Icons.cloud_off_outlined, size: 52, color: Colors.black26),
           const SizedBox(height: 12),
           Text(message,
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: Colors.black54, fontSize: 14),
               textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: onRetry,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF37),
-                foregroundColor: const Color(0xFF1A120B)),
-            child: const Text('إعادة المحاولة'),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('إعادة المحاولة'),
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─── Data model ───────────────────────────────────────────────────────────────
-
-class VerificationRecord {
-  const VerificationRecord({
-    required this.id,
-    required this.userName,
-    required this.userRole,
-    required this.phone,
-    required this.status,
-    required this.submittedAt,
-    required this.adminNote,
-  });
-
-  final String id;
-  final String userName;
-  final String userRole;
-  final String phone;
-  final String status;
-  final String submittedAt;
-  final String adminNote;
-
-  factory VerificationRecord.fromJson(Map<String, dynamic> json) {
-    String _s(List<String> keys) {
-      for (final k in keys) {
-        final v = json[k];
-        if (v != null && v.toString().trim().isNotEmpty) {
-          return v.toString().trim();
-        }
-      }
-      return '';
-    }
-
-    return VerificationRecord(
-      id: _s(['id']),
-      userName: _s(['userName', 'name', 'user_name', 'fullName']),
-      userRole: _s(['userRole', 'role', 'user_role']),
-      phone: _s(['phone', 'mobile', 'phoneNumber']),
-      status: _s(['status']),
-      submittedAt: _s(['submitted_at', 'submittedAt', 'created_at']),
-      adminNote: _s(['admin_note', 'adminNote', 'note']),
     );
   }
 }

@@ -44,6 +44,11 @@ class AdminLayout extends StatelessWidget {
       icon: Icons.manage_search_outlined,
     ),
     _AdminRouteData(
+      label: 'طلبات الباحثين',
+      route: '/seeker-requests',
+      icon: Icons.assignment_outlined,
+    ),
+    _AdminRouteData(
       label: 'المشرفون والصلاحيات',
       route: '/supervisors',
       icon: Icons.group_outlined,
@@ -175,6 +180,7 @@ class AdminLayout extends StatelessWidget {
       case '/owners':
       case '/offices':
       case '/seekers':
+      case '/seeker-requests':
       case '/supervisors':
         return 'manage_users';
       case '/subscriptions':
