@@ -243,6 +243,20 @@ class ApiService {
     );
   }
 
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return _dio.patch<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
+  }
+
   Future<http.MultipartFile> createMultipartFile(
     String fieldName,
     String filePath,

@@ -331,19 +331,113 @@ class AdminDataService {
         .toList(growable: false);
   }
 
+  /// Send a push notification.
+  ///
+  /// [audience] — one of: all | seeker | owner | office | user | city |
+  ///   active_subs | expired_subs
+  /// [targetValue] — required when audience is 'user' (phone/id) or 'city'
+  /// [imageUrl]   — optional banner image URL
+  /// [deepLink]   — optional in-app deep-link
   Future<void> sendNotification({
     required String title,
     required String message,
     required String audience,
+    String? targetValue,
+    String? imageUrl,
+    String? deepLink,
   }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'message': message,
+      'audience': audience,
+      // Backend key aliases — send both so whichever the server expects works
+      'target': audience,
+      'targetType': audience,
+      'target_type': audience,
+    };
+
+    if (targetValue != null && targetValue.isNotEmpty) {
+      payload['targetValue'] = targetValue;
+      payload['target_value'] = targetValue;
+      // For 'user' audience send userId/phone separately too
+      if (audience == 'user') {
+        payload['userId'] = targetValue;
+        payload['user_id'] = targetValue;
+        payload['phone'] = targetValue;
+      }
+      // For 'city' audience
+      if (audience == 'city') {
+        payload['city'] = targetValue;
+      }
+    }
+
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      payload['imageUrl'] = imageUrl;
+      payload['image_url'] = imageUrl;
+      payload['image'] = imageUrl;
+    }
+
+    if (deepLink != null && deepLink.isNotEmpty) {
+      payload['deepLink'] = deepLink;
+      payload['deep_link'] = deepLink;
+      payload['link'] = deepLink;
+    }
+
     await _apiService.post<dynamic>(
       '/admin/notifications',
-      data: <String, dynamic>{
-        'title': title,
-        'message': message,
-        'audience': audience,
-      },
+      data: payload,
     );
+  }
+
+  // ─── Seeker Requests ─────────────────────────────────────────────────────────
+
+  /// Fetch seeker property-search requests.
+  /// Optional [status]: new | processing | completed | cancelled
+  /// Optional [city]: filter by city name
+  Future<List<Map<String, dynamic>>> fetchSeekerRequests({
+    String? status,
+    String? city,
+  }) async {
+    final queryParams = <String, dynamic>{};
+    if (status != null && status.isNotEmpty && status != 'all') {
+      queryParams['status'] = status;
+    }
+    if (city != null && city.isNotEmpty) {
+      queryParams['city'] = city;
+    }
+
+    final response = await _apiService.get<dynamic>(
+      '/admin/requests',
+      queryParameters: queryParams.isEmpty ? null : queryParams,
+    );
+    final list = ApiResponseNormalizer.asList(response.data);
+    return list.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Update the status of a seeker request.
+  /// [status]: processing | completed | cancelled
+  Future<void> updateSeekerRequestStatus(
+    String id,
+    String status, {
+    String? rejectionReason,
+  }) async {
+    final data = <String, dynamic>{
+      'status': status,
+    };
+    if (rejectionReason != null && rejectionReason.isNotEmpty) {
+      data['rejection_reason'] = rejectionReason;
+      data['rejectionReason'] = rejectionReason;
+      data['reason'] = rejectionReason;
+    }
+    await _apiService.patch<dynamic>(
+      '/admin/requests/$id',
+      data: data,
+    );
+  }
+
+  /// Permanently delete a seeker request.
+  Future<void> deleteSeekerRequest(String id) async {
+    await _apiService.delete<dynamic>('/admin/requests/$id');
   }
 
   Future<List<Map<String, dynamic>>> fetchSupervisors() async {

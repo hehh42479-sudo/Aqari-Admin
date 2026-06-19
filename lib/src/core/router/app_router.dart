@@ -6,6 +6,7 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/activity_log/activity_log_screen.dart';
 import '../../features/properties/add_property_screen.dart';
 import '../../features/properties/properties_screen.dart';
+import '../../features/seeker_requests/seeker_requests_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
 import '../../features/subscriptions/subscriptions_screen.dart';
@@ -78,6 +79,10 @@ GoRouter createAdminRouter(AdminSessionController sessionController) {
               title: 'الباحثون',
               role: 'seeker',
             ),
+          ),
+          GoRoute(
+            path: '/seeker-requests',
+            builder: (context, state) => const SeekerRequestsScreen(),
           ),
           GoRoute(
             path: '/supervisors',
