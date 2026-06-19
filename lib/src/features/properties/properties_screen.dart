@@ -13,6 +13,8 @@
 //  • Property Detail Dialog: image carousel, owner info, stats, all actions
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -233,21 +235,42 @@ class Property {
     }
 
     // Image URLs
-    // Helper: parse a possibly-stringified JSON array string into a List<String>
+    // Helper: parse a possibly-stringified JSON array/object string into List<String>.
+    // Correctly handles backend JSONB format: '[{"url":"/uploads/img.jpg","isMain":true}]'
+    // as well as plain string arrays: '["uploads/img.png","uploads/img2.png"]'
     List<String> unwrapStringifiedArray(String s) {
       final t = s.trim();
-      if (!t.startsWith('[')) return [t];
-      try {
-        final inner = t.substring(1, t.length - 1).trim();
-        if (inner.isEmpty) return [];
-        return inner
-            .split(',')
-            .map((e) => e.trim().replaceAll('"', '').replaceAll("'", '').trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      } catch (_) {
-        return [t];
+      if (t.isEmpty) return [];
+      // Try proper JSON decode first (handles objects and arrays with nested commas)
+      if (t.startsWith('[') || t.startsWith('{')) {
+        try {
+          final decoded = jsonDecode(t);
+          if (decoded is List) {
+            return decoded.expand<String>((item) {
+              if (item is String) return [item.trim()];
+              if (item is Map) {
+                final u = item['url']?.toString() ??
+                    item['path']?.toString() ??
+                    item['uri']?.toString() ??
+                    '';
+                return u.trim().isNotEmpty ? [u.trim()] : <String>[];
+              }
+              return <String>[];
+            }).where((e) => e.isNotEmpty).toList();
+          }
+          if (decoded is Map) {
+            final u = decoded['url']?.toString() ??
+                decoded['path']?.toString() ??
+                decoded['uri']?.toString() ??
+                '';
+            return u.trim().isNotEmpty ? [u.trim()] : [];
+          }
+        } catch (_) {
+          // fall through to plain-text fallback
+        }
       }
+      // Plain string (not JSON) — return as single-element list
+      return t.isNotEmpty ? [t] : [];
     }
 
     List<String> extractImages() {
@@ -1345,8 +1368,82 @@ class _PropertyDetailDialogState extends State<_PropertyDetailDialog> {
                     ),
                   ),
                 ],
-              ])
-            else
+              ]),
+
+            // ── Thumbnail strip (shown when >1 image) ──────────────────────
+            if (images.length > 1)
+              Container(
+                color: const Color(0xFF0B1E35),
+                height: 72,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  itemCount: images.length,
+                  itemBuilder: (_, i) {
+                    final isSelected = i == _page;
+                    return GestureDetector(
+                      onTap: () => _pageCtrl.animateToPage(
+                        i,
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                      ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 56,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFFD4AF37)
+                                : Colors.transparent,
+                            width: 2.5,
+                          ),
+                          boxShadow: isSelected
+                              ? [BoxShadow(
+                                  color: const Color(0xFFD4AF37).withOpacity(0.45),
+                                  blurRadius: 6,
+                                )]
+                              : null,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(
+                            images[i],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (_, child, prog) {
+                              if (prog == null) return child;
+                              return Container(
+                                color: const Color(0xFF1A2F4A),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFFD4AF37),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (_, __, ___) => Container(
+                              color: const Color(0xFF1A2F4A),
+                              child: const Icon(
+                                Icons.broken_image_rounded,
+                                size: 22,
+                                color: Color(0xFF8A98A9),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            if (images.isEmpty)
               Container(
                 height: 120,
                 decoration: const BoxDecoration(
