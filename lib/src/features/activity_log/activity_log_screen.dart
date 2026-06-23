@@ -28,7 +28,7 @@ class ActivityLogScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           FutureBuilder<List<Map<String, dynamic>>>(
-            future: adminDataService.fetchActivityLogs(),
+            future: adminDataService.fetchAdminActivityLog(),
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());

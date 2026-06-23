@@ -562,4 +562,337 @@ class AdminDataService {
         await _apiService.get<dynamic>('/admin/properties/$propertyId');
     return ApiResponseNormalizer.asMap(response.data);
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LOCATIONS — governorates / cities / districts / neighborhoods
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchGovernorates() async {
+    final r = await _apiService.get<dynamic>('/admin/locations/governorates');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createGovernorate(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/locations/governorates', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateGovernorate(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/locations/governorates/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteGovernorate(String id) async {
+    await _apiService.delete<dynamic>('/admin/locations/governorates/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminCities({String? governorateId}) async {
+    final r = await _apiService.get<dynamic>('/admin/locations/cities',
+        queryParameters: governorateId != null ? {'governorate_id': governorateId} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createCity(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/locations/cities', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateCity(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/locations/cities/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteCity(String id) async {
+    await _apiService.delete<dynamic>('/admin/locations/cities/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminDistricts({String? cityId}) async {
+    final r = await _apiService.get<dynamic>('/admin/locations/districts',
+        queryParameters: cityId != null ? {'city_id': cityId} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createDistrict(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/locations/districts', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateDistrict(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/locations/districts/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteDistrict(String id) async {
+    await _apiService.delete<dynamic>('/admin/locations/districts/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminNeighborhoods({String? districtId}) async {
+    final r = await _apiService.get<dynamic>('/admin/locations/neighborhoods',
+        queryParameters: districtId != null ? {'district_id': districtId} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createNeighborhood(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/locations/neighborhoods', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateNeighborhood(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/locations/neighborhoods/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteNeighborhood(String id) async {
+    await _apiService.delete<dynamic>('/admin/locations/neighborhoods/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PROPERTY TYPES
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchPropertyTypes() async {
+    final r = await _apiService.get<dynamic>('/admin/property-types');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createPropertyType(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/property-types', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updatePropertyType(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/property-types/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deletePropertyType(String id) async {
+    await _apiService.delete<dynamic>('/admin/property-types/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ALL EMPLOYEES (global)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchAllEmployees({String? officeId, String? status}) async {
+    final Map<String, dynamic> params = {};
+    if (officeId != null) params['office_id'] = officeId;
+    if (status != null) params['status'] = status;
+    final r = await _apiService.get<dynamic>('/admin/all-employees',
+        queryParameters: params.isNotEmpty ? params : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> toggleEmployeeStatus(String id) async {
+    final r = await _apiService.patch<dynamic>('/admin/all-employees/$id/toggle');
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteEmployeeAdmin(String id) async {
+    await _apiService.delete<dynamic>('/admin/all-employees/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CHAT ROOMS (admin management)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchAdminChatRooms({String? role, String? status}) async {
+    final Map<String, dynamic> params = {};
+    if (role != null) params['role'] = role;
+    if (status != null) params['status'] = status;
+    final r = await _apiService.get<dynamic>('/admin/chats',
+        queryParameters: params.isNotEmpty ? params : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> deleteChatRoom(String roomId) async {
+    await _apiService.delete<dynamic>('/admin/chats/$roomId');
+  }
+
+  Future<void> closeChatRoom(String roomId) async {
+    await _apiService.patch<dynamic>('/admin/chats/$roomId/close');
+  }
+
+  Future<void> banUserFromChat(String userId, {String? reason}) async {
+    await _apiService.post<dynamic>('/admin/chats/$userId/ban',
+        data: {'reason': reason ?? ''});
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // RATINGS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchRatings({String? targetType}) async {
+    final r = await _apiService.get<dynamic>('/admin/ratings',
+        queryParameters: targetType != null ? {'target_type': targetType} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> toggleRatingApproval(String id) async {
+    await _apiService.patch<dynamic>('/admin/ratings/$id/toggle');
+  }
+
+  Future<void> deleteRating(String id) async {
+    await _apiService.delete<dynamic>('/admin/ratings/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CONTENT PAGES
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchContentPages() async {
+    final r = await _apiService.get<dynamic>('/admin/content');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> upsertContentPage(String slug, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/content/$slug', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ADVERTISEMENTS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchAds({String? placement}) async {
+    final r = await _apiService.get<dynamic>('/admin/ads',
+        queryParameters: placement != null ? {'placement': placement} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createAd(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/ads', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateAd(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/ads/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteAd(String id) async {
+    await _apiService.delete<dynamic>('/admin/ads/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SYSTEM MONITORING
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> fetchSystemHealth() async {
+    final r = await _apiService.get<dynamic>('/admin/monitoring/health');
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BACKUP
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchBackupLogs() async {
+    final r = await _apiService.get<dynamic>('/admin/backup/logs');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  // createBackup returns raw bytes (JSON file download) — handled in screen via dio directly
+  Future<String> triggerBackupDownloadUrl() => Future.value(
+    'https://aqari-backend.onrender.com/api/admin/backup/create',
+  );
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SECURITY — banned users / devices / login attempts
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchBannedUsers() async {
+    final r = await _apiService.get<dynamic>('/admin/security/banned-users');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> banUser(String userId, {String? reason}) async {
+    await _apiService.post<dynamic>('/admin/security/ban-user',
+        data: {'user_id': int.tryParse(userId) ?? userId, 'reason': reason ?? ''});
+  }
+
+  Future<void> unbanUser(String userId) async {
+    await _apiService.delete<dynamic>('/admin/security/ban-user/$userId');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBannedDevices() async {
+    final r = await _apiService.get<dynamic>('/admin/security/banned-devices');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> unbanDevice(String deviceId) async {
+    await _apiService.delete<dynamic>('/admin/security/ban-device/${Uri.encodeComponent(deviceId)}');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLoginAttempts({bool? failedOnly}) async {
+    final r = await _apiService.get<dynamic>('/admin/security/login-attempts',
+        queryParameters: failedOnly == true ? {'success': 'false'} : null);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // EMERGENCY CONTROLS — system flags
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> fetchSystemFlags() async {
+    final r = await _apiService.get<dynamic>('/admin/emergency/flags');
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateSystemFlags(Map<String, dynamic> data) async {
+    final r = await _apiService.patch<dynamic>('/admin/emergency/flags', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // APP CONFIG — branding / social / contact
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> fetchAppConfig() async {
+    final r = await _apiService.get<dynamic>('/admin/app-config');
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateAppConfig(Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/app-config', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // APP UPDATES — version management
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchAppUpdates() async {
+    final r = await _apiService.get<dynamic>('/admin/app-updates');
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> createAppUpdate(Map<String, dynamic> data) async {
+    final r = await _apiService.post<dynamic>('/admin/app-updates', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<Map<String, dynamic>> updateAppUpdate(String id, Map<String, dynamic> data) async {
+    final r = await _apiService.put<dynamic>('/admin/app-updates/$id', data: data);
+    return ApiResponseNormalizer.asMap(r.data);
+  }
+
+  Future<void> deleteAppUpdate(String id) async {
+    await _apiService.delete<dynamic>('/admin/app-updates/$id');
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ACTIVITY LOG (real endpoint)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Future<List<Map<String, dynamic>>> fetchAdminActivityLog({
+    String? action,
+    String? entityType,
+    int limit = 200,
+  }) async {
+    final Map<String, dynamic> params = {'limit': limit};
+    if (action != null) params['action'] = action;
+    if (entityType != null) params['entity_type'] = entityType;
+    final r = await _apiService.get<dynamic>('/admin/activity-log', queryParameters: params);
+    return ApiResponseNormalizer.asList(r.data).whereType<Map<String, dynamic>>().toList();
+  }
 }

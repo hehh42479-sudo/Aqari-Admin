@@ -103,6 +103,71 @@ class AdminLayout extends StatelessWidget {
       route: '/settings',
       icon: Icons.settings_outlined,
     ),
+    _AdminRouteData(
+      label: 'المواقع الجغرافية',
+      route: '/locations',
+      icon: Icons.map_outlined,
+    ),
+    _AdminRouteData(
+      label: 'أنواع العقارات',
+      route: '/property-types',
+      icon: Icons.category_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة الموظفين',
+      route: '/all-employees',
+      icon: Icons.badge_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة المحادثات',
+      route: '/chats-management',
+      icon: Icons.chat_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة التقييمات',
+      route: '/ratings',
+      icon: Icons.star_half_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة المحتوى',
+      route: '/content-pages',
+      icon: Icons.article_outlined,
+    ),
+    _AdminRouteData(
+      label: 'الإعلانات',
+      route: '/ads',
+      icon: Icons.campaign_outlined,
+    ),
+    _AdminRouteData(
+      label: 'مراقبة النظام',
+      route: '/monitoring',
+      icon: Icons.monitor_heart_outlined,
+    ),
+    _AdminRouteData(
+      label: 'النسخ الاحتياطي',
+      route: '/backup',
+      icon: Icons.backup_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة الأمان',
+      route: '/security',
+      icon: Icons.security_outlined,
+    ),
+    _AdminRouteData(
+      label: 'مركز الطوارئ',
+      route: '/emergency',
+      icon: Icons.emergency_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إعدادات التطبيق',
+      route: '/app-config',
+      icon: Icons.tune_outlined,
+    ),
+    _AdminRouteData(
+      label: 'إدارة التحديثات',
+      route: '/app-updates',
+      icon: Icons.system_update_outlined,
+    ),
   ];
 
   @override
@@ -196,6 +261,24 @@ class AdminLayout extends StatelessWidget {
         return 'manage_requests';
       case '/verifications':
         return 'manage_users';
+      case '/locations':
+      case '/property-types':
+        return 'manage_properties';
+      case '/all-employees':
+        return 'manage_users';
+      case '/chats-management':
+      case '/ratings':
+        return 'manage_requests';
+      case '/content-pages':
+      case '/ads':
+      case '/app-config':
+      case '/app-updates':
+        return 'manage_settings';
+      case '/monitoring':
+      case '/backup':
+      case '/security':
+      case '/emergency':
+        return 'manage_settings';
       default:
         return null;
     }

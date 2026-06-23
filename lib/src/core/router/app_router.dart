@@ -13,6 +13,19 @@ import '../../features/subscriptions/subscriptions_screen.dart';
 import '../../features/supervisors/supervisors_screen.dart';
 import '../../features/users/user_management_screen.dart';
 import '../../features/verifications/verifications_screen.dart';
+import '../../features/locations/locations_screen.dart';
+import '../../features/property_types/property_types_screen.dart';
+import '../../features/all_employees/all_employees_screen.dart';
+import '../../features/chats/chats_management_screen.dart';
+import '../../features/ratings/ratings_screen.dart';
+import '../../features/content/content_pages_screen.dart';
+import '../../features/ads/ads_screen.dart';
+import '../../features/monitoring/monitoring_screen.dart';
+import '../../features/backup/backup_screen.dart';
+import '../../features/security/security_screen.dart';
+import '../../features/emergency/emergency_screen.dart';
+import '../../features/app_config/app_config_screen.dart';
+import '../../features/app_updates/app_updates_screen.dart';
 import '../../../screens/login_screen.dart';
 import '../state/admin_session_controller.dart';
 import '../widgets/admin_layout.dart';
@@ -182,6 +195,58 @@ GoRouter createAdminRouter(AdminSessionController sessionController) {
           GoRoute(
             path: '/verifications',
             builder: (context, state) => const VerificationsScreen(),
+          ),
+          GoRoute(
+            path: '/locations',
+            builder: (context, state) => const LocationsScreen(),
+          ),
+          GoRoute(
+            path: '/property-types',
+            builder: (context, state) => const PropertyTypesScreen(),
+          ),
+          GoRoute(
+            path: '/all-employees',
+            builder: (context, state) => const AllEmployeesScreen(),
+          ),
+          GoRoute(
+            path: '/chats-management',
+            builder: (context, state) => const ChatsManagementScreen(),
+          ),
+          GoRoute(
+            path: '/ratings',
+            builder: (context, state) => const RatingsScreen(),
+          ),
+          GoRoute(
+            path: '/content-pages',
+            builder: (context, state) => const ContentPagesScreen(),
+          ),
+          GoRoute(
+            path: '/ads',
+            builder: (context, state) => const AdsScreen(),
+          ),
+          GoRoute(
+            path: '/monitoring',
+            builder: (context, state) => const MonitoringScreen(),
+          ),
+          GoRoute(
+            path: '/backup',
+            builder: (context, state) => const BackupScreen(),
+          ),
+          GoRoute(
+            path: '/security',
+            builder: (context, state) => const SecurityScreen(),
+          ),
+          GoRoute(
+            path: '/emergency',
+            builder: (context, state) => const EmergencyScreen(),
+          ),
+          GoRoute(
+            path: '/app-config',
+            builder: (context, state) => const AppConfigScreen(),
+          ),
+          GoRoute(
+            path: '/app-updates',
+            builder: (context, state) => const AppUpdatesScreen(),
           ),
         ],
       ),
