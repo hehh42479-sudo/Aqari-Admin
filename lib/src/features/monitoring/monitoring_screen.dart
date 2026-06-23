@@ -90,51 +90,57 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     final cpu      = _health['cpuLoad'] ?? _health['cpu'] ?? _health['cpu_load'];
     final dbStatus = _health['database'] ?? _health['db'] ?? _health['db_status'];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Text('مراقبة النظام',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const Spacer(),
-            IconButton(icon: const Icon(Icons.refresh), onPressed: _load, tooltip: 'تحديث'),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text('حالة الخادم والذاكرة والمعالج وقاعدة البيانات في الوقت الفعلي.',
-            style: Theme.of(context).textTheme.bodyLarge),
-        const SizedBox(height: 20),
-        if (_loading)
-          const Center(child: CircularProgressIndicator())
-        else if (_error != null)
-          Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-        else ...[
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              SizedBox(width: 200,
-                child: _metricCard('الخادم', dbStatus != null ? (dbStatus.toString().toLowerCase().contains('ok') || dbStatus.toString().toLowerCase().contains('connect') ? 'متصل ✓' : dbStatus) : 'نشط', Icons.dns_outlined, const Color(0xFF17B26A))),
-              SizedBox(width: 200, child: _metricCard('وقت التشغيل', uptime, Icons.timer_outlined, const Color(0xFF0B3A66))),
-              SizedBox(width: 200, child: _metricCard('استخدام الذاكرة', mem, Icons.memory_outlined, Colors.orange)),
-              SizedBox(width: 200, child: _metricCard('حمل المعالج', cpu, Icons.speed_outlined, Colors.purple)),
+              Text('مراقبة النظام',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.refresh), onPressed: _load, tooltip: 'تحديث'),
             ],
           ),
-          const SizedBox(height: 24),
-          Text('تفاصيل كاملة',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Card(
+          const SizedBox(height: 8),
+          Text('حالة الخادم والذاكرة والمعالج وقاعدة البيانات في الوقت الفعلي.',
+              style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 20),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.only(top: 80),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 80),
+              child: Center(child: Text(_error!, style: const TextStyle(color: Colors.red))),
+            )
+          else ...[
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                SizedBox(width: 200,
+                  child: _metricCard('الخادم', dbStatus != null ? (dbStatus.toString().toLowerCase().contains('ok') || dbStatus.toString().toLowerCase().contains('connect') ? 'متصل ✓' : dbStatus) : 'نشط', Icons.dns_outlined, const Color(0xFF17B26A))),
+                SizedBox(width: 200, child: _metricCard('وقت التشغيل', uptime, Icons.timer_outlined, const Color(0xFF0B3A66))),
+                SizedBox(width: 200, child: _metricCard('استخدام الذاكرة', mem, Icons.memory_outlined, Colors.orange)),
+                SizedBox(width: 200, child: _metricCard('حمل المعالج', cpu, Icons.speed_outlined, Colors.purple)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text('تفاصيل كاملة',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(child: _buildHealthTable()),
+                child: _buildHealthTable(),
               ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

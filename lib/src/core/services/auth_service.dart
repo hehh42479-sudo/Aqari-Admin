@@ -23,43 +23,58 @@ class AuthService {
 
   final String _baseUrl;
 
+  // Render.com free-tier services spin down after inactivity and can take up
+  // to 30 seconds to cold-start. We use a 45-second timeout + 1 auto-retry to
+  // survive cold-start delays without showing a timeout error to the user.
+  static const _timeout = Duration(seconds: 45);
+  static const _maxRetries = 1;
+
   Future<void> sendOtp(String phone) async {
     final uri = Uri.parse('$_baseUrl/auth/send-otp');
-    final payload = <String, String>{
-      'phone': phone.trim(),
-    };
+    final payload = <String, String>{'phone': phone.trim()};
 
-    try {
-      final response = await http
-          .post(
-            uri,
-            headers: const <String, String>{
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 15));
+    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
+      try {
+        final response = await http
+            .post(
+              uri,
+              headers: const <String, String>{
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode(payload),
+            )
+            .timeout(_timeout);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return;
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return;
+        }
+
+        debugPrint('Send OTP failed: ${response.statusCode} ${response.body}');
+        throw Exception(
+          _extractErrorMessage(
+            response.body,
+            fallback: 'تعذر إرسال رمز التحقق. حاول مرة أخرى.',
+          ),
+        );
+      } on TimeoutException {
+        debugPrint('Send OTP timeout (attempt ${attempt + 1})');
+        if (attempt < _maxRetries) {
+          // Silent retry — server may be waking up
+          await Future<void>.delayed(const Duration(seconds: 3));
+          continue;
+        }
+        throw Exception(
+          'الخادم يستغرق وقتاً للاستجابة (cold start). يرجى المحاولة مرة أخرى بعد لحظات.',
+        );
+      } on http.ClientException catch (e) {
+        debugPrint('Send OTP client error: $e');
+        if (attempt < _maxRetries) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        throw Exception('تعذر الاتصال بالخادم. تحقق من عنوان الـ API والاتصال.');
       }
-
-      debugPrint(
-        'Send OTP failed: ${response.statusCode} ${response.body}',
-      );
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'تعذر إرسال رمز التحقق. حاول مرة أخرى.',
-        ),
-      );
-    } on TimeoutException {
-      debugPrint('Send OTP failed: timeout');
-      throw Exception('انتهت مهلة الاتصال بالخادم. تحقق من تشغيل الـ backend.');
-    } on http.ClientException {
-      debugPrint('Send OTP failed: client exception');
-      throw Exception('تعذر الاتصال بالخادم. تحقق من عنوان الـ API والاتصال.');
     }
   }
 
@@ -70,62 +85,75 @@ class AuthService {
       'otp': otp.trim(),
     };
 
-    try {
-      final response = await http
-          .post(
-            uri,
-            headers: const <String, String>{
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 15));
+    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
+      try {
+        final response = await http
+            .post(
+              uri,
+              headers: const <String, String>{
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode(payload),
+            )
+            .timeout(_timeout);
 
-      if (response.statusCode == 200) {
-        final decoded = _decodeJson(response.body);
-        final token = _extractToken(decoded);
+        if (response.statusCode == 200) {
+          final decoded = _decodeJson(response.body);
+          final token = _extractToken(decoded);
 
-        if (token == null || token.isEmpty) {
-          throw Exception('فشل التحقق: لم يتم إرجاع رمز JWT من الخادم.');
+          if (token == null || token.isEmpty) {
+            throw Exception('فشل التحقق: لم يتم إرجاع رمز JWT من الخادم.');
+          }
+
+          final userData = _extractUserData(decoded);
+          return OtpVerificationResult(
+            token: token,
+            userData: userData,
+            rawResponse: decoded,
+          );
         }
 
-        final userData = _extractUserData(decoded);
-        return OtpVerificationResult(
-          token: token,
-          userData: userData,
-          rawResponse: decoded,
-        );
-      }
+        if (response.statusCode == 401 ||
+            response.statusCode == 404 ||
+            response.statusCode == 500) {
+          debugPrint('Verify OTP failed: ${response.statusCode} ${response.body}');
+          throw Exception(
+            _extractErrorMessage(
+              response.body,
+              fallback: 'بيانات الدخول غير صحيحة أو لا تملك صلاحية الإدارة',
+            ),
+          );
+        }
 
-      if (response.statusCode == 401 ||
-          response.statusCode == 404 ||
-          response.statusCode == 500) {
-        debugPrint(
-          'Verify OTP failed: ${response.statusCode} ${response.body}',
-        );
+        debugPrint('Verify OTP failed: ${response.statusCode} ${response.body}');
         throw Exception(
           _extractErrorMessage(
             response.body,
             fallback: 'بيانات الدخول غير صحيحة أو لا تملك صلاحية الإدارة',
           ),
         );
+      } on TimeoutException {
+        debugPrint('Verify OTP timeout (attempt ${attempt + 1})');
+        if (attempt < _maxRetries) {
+          await Future<void>.delayed(const Duration(seconds: 3));
+          continue;
+        }
+        throw Exception(
+          'الخادم يستغرق وقتاً للاستجابة (cold start). يرجى المحاولة مرة أخرى بعد لحظات.',
+        );
+      } on http.ClientException catch (e) {
+        debugPrint('Verify OTP client error: $e');
+        if (attempt < _maxRetries) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        throw Exception('تعذر الاتصال بالخادم. تحقق من عنوان الـ API والاتصال.');
       }
-
-      debugPrint('Verify OTP failed: ${response.statusCode} ${response.body}');
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'بيانات الدخول غير صحيحة أو لا تملك صلاحية الإدارة',
-        ),
-      );
-    } on TimeoutException {
-      debugPrint('Verify OTP failed: timeout');
-      throw Exception('انتهت مهلة الاتصال بالخادم. تحقق من تشغيل الـ backend.');
-    } on http.ClientException {
-      debugPrint('Verify OTP failed: client exception');
-      throw Exception('تعذر الاتصال بالخادم. تحقق من عنوان الـ API والاتصال.');
     }
+
+    // Should never reach here
+    throw Exception('خطأ غير متوقع في إرسال OTP.');
   }
 
   Map<String, dynamic> _decodeJson(String body) {
@@ -133,7 +161,6 @@ class AuthService {
     if (decoded is Map<String, dynamic>) {
       return decoded;
     }
-
     throw Exception('استجابة غير صالحة من الخادم.');
   }
 
@@ -161,14 +188,11 @@ class AuthService {
     if (user is Map<String, dynamic>) {
       return user;
     }
-
     return json;
   }
 
   String _extractErrorMessage(String body, {required String fallback}) {
-    if (body.isEmpty) {
-      return fallback;
-    }
+    if (body.isEmpty) return fallback;
 
     try {
       final decoded = jsonDecode(body);
@@ -182,7 +206,7 @@ class AuthService {
         }
       }
     } catch (_) {
-      // If the body is not JSON, fall back to the default message.
+      // Body is not JSON — use fallback.
     }
 
     return fallback;

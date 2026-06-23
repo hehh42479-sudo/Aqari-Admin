@@ -296,7 +296,9 @@ class _AdminContentScaffold extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.all(isCompact ? 16 : 24),
-        child: child,
+        // SizedBox.expand ensures every child screen receives tight height
+        // constraints so that Column + Expanded children never overflow on web.
+        child: SizedBox.expand(child: child),
       ),
     );
   }

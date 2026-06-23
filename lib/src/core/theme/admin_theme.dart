@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 ThemeData buildAdminTheme() {
   const primary = Color(0xFF0B3A66);
@@ -16,11 +17,37 @@ ThemeData buildAdminTheme() {
         surfaceContainerHighest: Colors.white,
       );
 
+  // Cairo is a high-quality Arabic + Latin font from Google Fonts.
+  // Using GoogleFonts.cairoTextTheme() ensures Arabic characters render
+  // correctly on web without "Could not find Noto fonts" warnings.
+  final cairoTextTheme = GoogleFonts.cairoTextTheme(
+    const TextTheme(
+      headlineLarge: TextStyle(
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF13233B),
+      ),
+      headlineMedium: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF13233B),
+      ),
+      titleLarge: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF13233B),
+      ),
+      titleMedium: TextStyle(
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF13233B),
+      ),
+      bodyLarge: TextStyle(color: Color(0xFF35465E)),
+      bodyMedium: TextStyle(color: Color(0xFF516174)),
+    ),
+  );
+
   return ThemeData(
     useMaterial3: true,
-    fontFamily: 'Cairo',
     colorScheme: colorScheme,
     scaffoldBackgroundColor: background,
+    textTheme: cairoTextTheme,
     appBarTheme: const AppBarTheme(
       backgroundColor: primaryDark,
       foregroundColor: Colors.white,
@@ -37,8 +64,9 @@ ThemeData buildAdminTheme() {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        textStyle: const TextStyle(
+        textStyle: TextStyle(
           fontWeight: FontWeight.w700,
+          fontFamily: GoogleFonts.cairo().fontFamily,
         ),
       ),
     ),
@@ -67,26 +95,6 @@ ThemeData buildAdminTheme() {
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: primary, width: 1.4),
       ),
-    ),
-    textTheme: const TextTheme(
-      headlineLarge: TextStyle(
-        fontWeight: FontWeight.w800,
-        color: Color(0xFF13233B),
-      ),
-      headlineMedium: TextStyle(
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF13233B),
-      ),
-      titleLarge: TextStyle(
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF13233B),
-      ),
-      titleMedium: TextStyle(
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF13233B),
-      ),
-      bodyLarge: TextStyle(color: Color(0xFF35465E)),
-      bodyMedium: TextStyle(color: Color(0xFF516174)),
     ),
   );
 }
