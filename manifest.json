@@ -1,13 +1,13 @@
 {
   "name": "Aqari Plus Admin — لوحة الإدارة",
-  "short_name": "أقاري Admin",
-  "description": "لوحة إدارة منصة أقاري بلس العقارية — إدارة العقارات والمستخدمين والإشعارات",
+  "short_name": "Aqari Admin",
+  "description": "لوحة إدارة منصة عقاري بلس العقارية — إدارة العقارات والمستخدمين والإشعارات",
   "start_url": "/Aqari-Admin/",
   "scope": "/Aqari-Admin/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#082949",
-  "background_color": "#082949",
+  "theme_color": "#3A230F",
+  "background_color": "#FAF4EA",
   "lang": "ar",
   "dir": "rtl",
   "categories": ["business", "productivity"],
@@ -39,6 +39,13 @@
       "short_name": "Properties",
       "description": "إدارة العقارات",
       "url": "/Aqari-Admin/#properties",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "الإشعارات",
+      "short_name": "Notifications",
+      "description": "إدارة الإشعارات",
+      "url": "/Aqari-Admin/#notifications",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]

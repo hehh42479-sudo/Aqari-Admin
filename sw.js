@@ -6,7 +6,7 @@
    - Pages: Network-first with offline fallback
    ═══════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'aqari-admin-v2';
+const CACHE_NAME    = 'aqari-plus-admin-v3';  // bumped to clear old caches
 const API_ORIGIN    = 'https://aqari-backend.onrender.com';
 const OFFLINE_URL   = '/Aqari-Admin/offline.html';
 

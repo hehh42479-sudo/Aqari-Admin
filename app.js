@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   Aqari Plus Admin Panel — Production SPA
+   Aqari Plus Admin — لوحة إدارة منصة عقاري بلس
    Backend: https://aqari-backend.onrender.com/api
    ═══════════════════════════════════════════════════════ */
 
@@ -338,20 +338,20 @@ async function renderDashboard() {
     const data = await GET('/admin/stats');
     const s = data;
     const cards = [
-      { icon:'🏠', label:'إجمالي العقارات',    value: fmtNum(s.totalProperties||s.total_properties),    color:'#1D7CF2' },
-      { icon:'✅', label:'العقارات النشطة',    value: fmtNum(s.activeProperties||s.active_properties),  color:'#17B26A' },
-      { icon:'⏳', label:'بانتظار المراجعة',   value: fmtNum(s.pendingProperties||s.pending_properties),color:'#F39C12' },
-      { icon:'⭐', label:'العقارات المميزة',    value: fmtNum(s.featuredProperties||s.featured_properties),color:'#9A6B00' },
-      { icon:'🔑', label:'المؤجرة',            value: fmtNum(s.rentedProperties||s.rented_properties),  color:'#7B61FF' },
-      { icon:'💰', label:'المُباعة',           value: fmtNum(s.soldProperties||s.sold_properties),      color:'#DE6C3D' },
-      { icon:'👤', label:'الملاك',             value: fmtNum((s.users_by_role||{}).owner||s.ownersCount||s.owners_count||0), color:'#0F9D90' },
-      { icon:'🏢', label:'المكاتب',            value: fmtNum((s.users_by_role||{}).office||s.officesCount||s.offices_count||0), color:'#7B61FF' },
-      { icon:'🔍', label:'الباحثون',           value: fmtNum((s.users_by_role||{}).seeker||s.seekersCount||s.seekers_count||0), color:'#1D7CF2' },
-      { icon:'👮', label:'المشرفون',           value: fmtNum(s.supervisorsCount||s.supervisors_count||0), color:'#0B3A66' },
+      { icon:'🏠', label:'إجمالي العقارات',  value: fmtNum(s.totalProperties||s.total_properties),      color:'#C59D50' },
+      { icon:'✅', label:'العقارات النشطة',    value: fmtNum(s.activeProperties||s.active_properties),    color:'#5C8A3C' },
+      { icon:'⏳', label:'بانتظار المراجعة',  value: fmtNum(s.pendingProperties||s.pending_properties),   color:'#B8860B' },
+      { icon:'⭐', label:'العقارات المميزة',   value: fmtNum(s.featuredProperties||s.featured_properties), color:'#C59D50' },
+      { icon:'🔑', label:'المؤجرة',           value: fmtNum(s.rentedProperties||s.rented_properties),     color:'#7B5E3C' },
+      { icon:'💰', label:'المُباعة',          value: fmtNum(s.soldProperties||s.sold_properties),         color:'#8B5E3C' },
+      { icon:'👤', label:'الملاك',            value: fmtNum((s.users_by_role||{}).owner||s.ownersCount||s.owners_count||0),   color:'#5C3A1E' },
+      { icon:'🏢', label:'المكاتب',           value: fmtNum((s.users_by_role||{}).office||s.officesCount||s.offices_count||0),color:'#3A230F' },
+      { icon:'🔍', label:'الباحثون',          value: fmtNum((s.users_by_role||{}).seeker||s.seekersCount||s.seekers_count||0),color:'#C59D50' },
+      { icon:'👮', label:'المشرفون',          value: fmtNum(s.supervisorsCount||s.supervisors_count||0),   color:'#3A230F' },
     ];
     const grid = cards.map(c => `
       <div class="stat-card">
-        <div class="stat-icon" style="background:${c.color}20">${c.icon}</div>
+        <div class="stat-icon" style="background:${c.color}18">${c.icon}</div>
         <div class="stat-value">${c.value||'0'}</div>
         <div class="stat-label">${c.label}</div>
       </div>`).join('');
@@ -521,7 +521,7 @@ async function renderSupervisors() {
           return `<tr>
             <td><strong>${r.name||'—'}</strong></td>
             <td>${r.phone||'—'}</td>
-            <td style="max-width:260px">${perms.map(p=>`<span class="badge badge-blue" style="margin:2px">${PERM_LABELS[p]||p}</span>`).join(' ')||'لا توجد صلاحيات'}</td>
+            <td style="max-width:260px">${perms.map(p=>`<span class="badge badge-gold" style="margin:2px">${PERM_LABELS[p]||p}</span>`).join(' ')||'لا توجد صلاحيات'}</td>
             <td>${fmtDate(r.created_at)}</td>
             <td>
               <button class="btn-action btn-view btn-sm" onclick="editSupervisor(${r.id},'${r.name}','${r.phone}',${JSON.stringify(perms)})">تعديل</button>
@@ -821,7 +821,7 @@ async function renderNotifications() {
       ? rows.map(r=>`<tr>
           <td><strong>${r.title||'—'}</strong></td>
           <td>${r.message||'—'}</td>
-          <td><span class="badge badge-blue">${r.target_role||'الكل'}</span></td>
+          <td><span class="badge badge-gold">${r.target_role||'الكل'}</span></td>
           <td>${fmtDate(r.created_at)}</td>
         </tr>`).join('')
       : `<tr><td colspan="4">${emptyHtml('🔔','لا توجد إشعارات')}</td></tr>`;
@@ -946,7 +946,7 @@ async function renderActivityLogs() {
     const thead = `<tr><th>الحدث</th><th>المستخدم</th><th>التفاصيل</th><th>التاريخ</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td><span class="badge badge-blue">${r.action||r.event||'—'}</span></td>
+          <td><span class="badge badge-gold">${r.action||r.event||'—'}</span></td>
           <td>${r.user_name||r.admin_name||r.user_id||'—'}</td>
           <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${r.details||r.description||JSON.stringify(r.data||{}).slice(0,80)}</td>
           <td>${fmtDate(r.created_at)}</td>
@@ -1109,7 +1109,7 @@ async function renderAds() {
     const tbody = rows.length
       ? rows.map(r=>`<tr>
           <td>${r.title||'—'}</td>
-          <td><a href="${r.url||'#'}" target="_blank" style="color:#1D7CF2">${r.url||'—'}</a></td>
+          <td><a href="${r.url||'#'}" target="_blank" style="color:var(--gold,#C59D50)">${r.url||'—'}</a></td>
           <td>${badgeForStatus(r.status||'active')}</td>
           <td><button class="btn-action btn-delete btn-sm" onclick="deleteAd(${r.id})">حذف</button></td>
         </tr>`).join('')
@@ -1709,7 +1709,7 @@ function renderUserGuide() {
   main.innerHTML = pageHeader('دليل الاستخدام','الشرح الكامل لجميع أقسام لوحة الإدارة.') +
     `<div class="card" style="margin-bottom:20px;padding:20px 22px">
       <p style="font-size:14px;color:#52606D;line-height:1.7">
-        📖 هذا الدليل يشرح كيفية استخدام جميع أقسام <strong>Aqari Plus Admin</strong>.
+        📖 هذا الدليل يشرح كيفية استخدام جميع أقسام <strong>Aqari Plus Admin</strong> — لوحة إدارة منصة عقاري بلس.
         اضغط على أي قسم لعرض التفاصيل. يمكنك التنقل بسرعة عبر القائمة الجانبية.
       </p>
     </div>` +
