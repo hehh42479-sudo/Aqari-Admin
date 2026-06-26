@@ -158,28 +158,38 @@ function logout() {
 
 /* ── Sidebar Nav Items ───────────────────────────────── */
 const ALL_NAV = [
-  { label:'لوحة التحكم',         route:'dashboard',        perm: null,                   icon:'📊' },
-  { label:'العقارات',             route:'properties',       perm:'manage_properties',     icon:'🏠' },
-  { label:'الملاك',               route:'owners',           perm:'manage_users',          icon:'👤' },
-  { label:'المكاتب العقارية',     route:'offices',          perm:'manage_users',          icon:'🏢' },
-  { label:'الباحثون',             route:'seekers',          perm:'manage_users',          icon:'🔍' },
-  { label:'طلبات الباحثين',       route:'seeker-requests',  perm:'manage_requests',       icon:'📋' },
-  { label:'المشرفون والصلاحيات', route:'supervisors',      perm:'manage_users',          icon:'👮' },
-  { label:'الباقات والاشتراكات',  route:'subscriptions',    perm:'manage_subscriptions',  icon:'⭐' },
-  { label:'مراجعة المدفوعات',     route:'payment-reviews',  perm:'manage_subscriptions',  icon:'💳' },
-  { label:'طلبات التوثيق',        route:'verifications',    perm:'manage_users',          icon:'✅' },
-  { label:'إدارة الموظفين',       route:'all-employees',    perm:'manage_employees',      icon:'👔' },
-  { label:'الإشعارات',            route:'notifications',    perm:'manage_settings',       icon:'🔔' },
-  { label:'إدارة المحادثات',      route:'chats-management', perm:'manage_requests',       icon:'💬' },
-  { label:'التقارير والإحصائيات', route:'reports',          perm:'manage_settings',       icon:'📈' },
-  { label:'سجل الأنشطة',          route:'activity-logs',    perm:'manage_settings',       icon:'📜' },
-  { label:'الإعدادات',            route:'settings',         perm:'manage_settings',       icon:'⚙️' },
-  { label:'المواقع الجغرافية',    route:'locations',        perm:'manage_cities',         icon:'📍' },
-  { label:'أنواع العقارات',       route:'property-types',   perm:'manage_settings',       icon:'🏗️' },
-  { label:'مراقبة النظام',        route:'monitoring',       perm:'manage_settings',       icon:'🖥️' },
-  { label:'الإعلانات',            route:'ads',              perm:'manage_settings',       icon:'📣' },
-  { label:'إدارة الأمان',         route:'security',         perm:'manage_settings',       icon:'🔒' },
-  { label:'مركز الطوارئ',         route:'emergency',        perm:'manage_settings',       icon:'🚨' },
+  { label:'لوحة التحكم',          route:'dashboard',            perm: null,                   icon:'📊' },
+  { label:'العقارات',              route:'properties',           perm:'manage_properties',     icon:'🏠' },
+  { label:'العقارات المميزة',      route:'featured-properties',  perm:'manage_properties',     icon:'⭐' },
+  { label:'الملاك',                route:'owners',               perm:'manage_users',          icon:'👤' },
+  { label:'المكاتب العقارية',      route:'offices',              perm:'manage_users',          icon:'🏢' },
+  { label:'الباحثون',              route:'seekers',              perm:'manage_users',          icon:'🔍' },
+  { label:'طلبات الباحثين',        route:'seeker-requests',      perm:'manage_requests',       icon:'📋' },
+  { label:'المشرفون والصلاحيات',   route:'supervisors',          perm:'manage_users',          icon:'👮' },
+  { label:'الباقات',               route:'packages',             perm:'manage_subscriptions',  icon:'📦' },
+  { label:'الباقات والاشتراكات',   route:'subscriptions',        perm:'manage_subscriptions',  icon:'🌟' },
+  { label:'المدفوعات',             route:'payments',             perm:'manage_subscriptions',  icon:'💰' },
+  { label:'مراجعة المدفوعات',      route:'payment-reviews',      perm:'manage_subscriptions',  icon:'💳' },
+  { label:'طلبات التوثيق',         route:'verifications',        perm:'manage_users',          icon:'✅' },
+  { label:'إدارة الموظفين',        route:'all-employees',        perm:'manage_employees',      icon:'👔' },
+  { label:'الإشعارات',             route:'notifications',        perm:'manage_settings',       icon:'🔔' },
+  { label:'إدارة المحادثات',       route:'chats-management',     perm:'manage_requests',       icon:'💬' },
+  { label:'البلاغات والشكاوى',     route:'complaints',           perm:'manage_requests',       icon:'🚩' },
+  { label:'الرسائل والدعم',        route:'messages-support',     perm:'manage_requests',       icon:'📩' },
+  { label:'التقييمات',             route:'ratings',              perm:'manage_settings',       icon:'⭐' },
+  { label:'إدارة المحتوى',         route:'content-pages',        perm:'manage_settings',       icon:'📄' },
+  { label:'التقارير والإحصائيات',  route:'reports',              perm:'manage_settings',       icon:'📈' },
+  { label:'سجل الأنشطة',           route:'activity-logs',        perm:'manage_settings',       icon:'📜' },
+  { label:'الإعدادات',             route:'settings',             perm:'manage_settings',       icon:'⚙️' },
+  { label:'المواقع الجغرافية',     route:'locations',            perm:'manage_cities',         icon:'📍' },
+  { label:'أنواع العقارات',        route:'property-types',       perm:'manage_settings',       icon:'🏗️' },
+  { label:'مراقبة النظام',         route:'monitoring',           perm:'manage_settings',       icon:'🖥️' },
+  { label:'الإعلانات',             route:'ads',                  perm:'manage_settings',       icon:'📣' },
+  { label:'النسخ الاحتياطي',       route:'backup',               perm:'manage_settings',       icon:'💾' },
+  { label:'إدارة الأمان',          route:'security',             perm:'manage_settings',       icon:'🔒' },
+  { label:'مركز الطوارئ',          route:'emergency',            perm:'manage_settings',       icon:'🚨' },
+  { label:'إعدادات التطبيق',       route:'app-config',           perm:'manage_settings',       icon:'🔧' },
+  { label:'إدارة التحديثات',       route:'app-updates',          perm:'manage_settings',       icon:'📱' },
 ];
 
 /* ── Init Panel ──────────────────────────────────────── */
@@ -232,28 +242,38 @@ function navigateTo(route) {
   // Render page
   const main = document.getElementById('main-content');
   const pages = {
-    'dashboard':       renderDashboard,
-    'properties':      () => renderUsersTable('properties'),
-    'owners':          () => renderUsersTable('owners'),
-    'offices':         () => renderUsersTable('offices'),
-    'seekers':         () => renderUsersTable('seekers'),
-    'seeker-requests': renderSeekerRequests,
-    'supervisors':     renderSupervisors,
-    'subscriptions':   renderSubscriptions,
-    'payment-reviews': renderPaymentReviews,
-    'verifications':   renderVerifications,
-    'all-employees':   renderAllEmployees,
-    'notifications':   renderNotifications,
-    'chats-management':renderChats,
-    'reports':         renderReports,
-    'activity-logs':   renderActivityLogs,
-    'settings':        renderSettings,
-    'locations':       renderLocations,
-    'property-types':  renderPropertyTypes,
-    'monitoring':      renderMonitoring,
-    'ads':             renderAds,
-    'security':        renderSecurity,
-    'emergency':       renderEmergency,
+    'dashboard':            renderDashboard,
+    'properties':           () => renderUsersTable('properties'),
+    'featured-properties':  renderFeaturedProperties,
+    'owners':               () => renderUsersTable('owners'),
+    'offices':              () => renderUsersTable('offices'),
+    'seekers':              () => renderUsersTable('seekers'),
+    'seeker-requests':      renderSeekerRequests,
+    'supervisors':          renderSupervisors,
+    'packages':             renderPackages,
+    'subscriptions':        renderSubscriptions,
+    'payments':             renderPayments,
+    'payment-reviews':      renderPaymentReviews,
+    'verifications':        renderVerifications,
+    'all-employees':        renderAllEmployees,
+    'notifications':        renderNotifications,
+    'chats-management':     renderChats,
+    'complaints':           renderComplaints,
+    'messages-support':     renderMessagesSupport,
+    'ratings':              renderRatings,
+    'content-pages':        renderContentPages,
+    'reports':              renderReports,
+    'activity-logs':        renderActivityLogs,
+    'settings':             renderSettings,
+    'locations':            renderLocations,
+    'property-types':       renderPropertyTypes,
+    'monitoring':           renderMonitoring,
+    'ads':                  renderAds,
+    'backup':               renderBackup,
+    'security':             renderSecurity,
+    'emergency':            renderEmergency,
+    'app-config':           renderAppConfig,
+    'app-updates':          renderAppUpdates,
   };
   if (pages[route]) {
     main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري التحميل...</p></div>`;
@@ -1214,6 +1234,296 @@ function closeModal() {
 }
 async function confirmModal() {
   if (_modalConfirm) await _modalConfirm();
+}
+
+/* ── Mobile Sidebar ────────────────────────────────── */
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('hidden');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.add('hidden');
+}
+
+
+/* ══════════════════════════════════════════════════════
+   PAGE: PAYMENTS (المدفوعات - /admin/payments)
+══════════════════════════════════════════════════════ */
+async function renderPayments() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/payments');
+    const list = data.payments || data.data || data || [];
+    const rows = list.map(p => `<tr>
+      <td>${p.id||'-'}</td>
+      <td>${p.user_name||p.phone||'-'}</td>
+      <td>${p.package_name||p.type||'-'}</td>
+      <td>${p.amount||'-'} ${p.currency||'USD'}</td>
+      <td><span class="badge ${p.status==='completed'?'badge-green':p.status==='pending'?'badge-yellow':'badge-red'}">${p.status||'-'}</span></td>
+      <td>${p.created_at?new Date(p.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد مدفوعات</td></tr>`;
+    main.innerHTML = pageHeader('المدفوعات','سجل جميع المدفوعات في النظام.',
+      `<button class="btn-white" onclick="renderPayments()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>المستخدم</th><th>الباقة</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('المدفوعات','') + `<div class="card">${errorHtml(e.message,'renderPayments')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: FEATURED PROPERTIES (العقارات المميزة)
+══════════════════════════════════════════════════════ */
+async function renderFeaturedProperties() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/properties/featured');
+    const list = data.properties || data.data || data || [];
+    const rows = list.map(p => `<tr>
+      <td>${p.id||'-'}</td>
+      <td>${p.title||p.name||'-'}</td>
+      <td>${p.owner_name||p.user_name||'-'}</td>
+      <td>${p.price?p.price.toLocaleString('ar'):'-'}</td>
+      <td><span class="badge badge-green">مميّز</span></td>
+      <td>
+        <button class="btn-action btn-delete" onclick="removeFeatured(${p.id})">إلغاء التمييز</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد عقارات مميزة</td></tr>`;
+    main.innerHTML = pageHeader('العقارات المميزة','العقارات المعروضة بشكل مميز في التطبيق.',
+      `<button class="btn-white" onclick="renderFeaturedProperties()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>العقار</th><th>المالك</th><th>السعر</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('العقارات المميزة','') + `<div class="card">${errorHtml(e.message,'renderFeaturedProperties')}</div>`;
+  }
+}
+async function removeFeatured(id) {
+  if (!confirm('إلغاء تمييز هذا العقار؟')) return;
+  try {
+    await PATCH(`/admin/properties/${id}/featured`, { featured: false });
+    toast('تم إلغاء التمييز','success'); renderFeaturedProperties();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: COMPLAINTS (البلاغات والشكاوى)
+══════════════════════════════════════════════════════ */
+async function renderComplaints() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/complaints');
+    const list = data.complaints || data.data || data || [];
+    const rows = list.map(c => `<tr>
+      <td>${c.id||'-'}</td>
+      <td>${c.reporter_name||c.user_name||'-'}</td>
+      <td>${c.subject||c.type||'-'}</td>
+      <td>${(c.description||c.message||'').substring(0,60)}${(c.description||'').length>60?'...':''}</td>
+      <td><span class="badge ${c.status==='resolved'?'badge-green':c.status==='pending'?'badge-yellow':'badge-red'}">${c.status||'pending'}</span></td>
+      <td>${c.created_at?new Date(c.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد شكاوى</td></tr>`;
+    main.innerHTML = pageHeader('البلاغات والشكاوى','إدارة البلاغات والشكاوى المُقدّمة من المستخدمين.',
+      `<button class="btn-white" onclick="renderComplaints()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>المُبلِّغ</th><th>الموضوع</th><th>الوصف</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('البلاغات والشكاوى','') + `<div class="card">${errorHtml(e.message,'renderComplaints')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: MESSAGES SUPPORT (الرسائل والدعم)
+══════════════════════════════════════════════════════ */
+async function renderMessagesSupport() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/messages');
+    const list = data.messages || data.data || data || [];
+    const rows = list.map(m => `<tr>
+      <td>${m.id||'-'}</td>
+      <td>${m.sender_name||m.from||'-'}</td>
+      <td>${(m.subject||m.message||'').substring(0,60)}${(m.subject||m.message||'').length>60?'...':''}</td>
+      <td><span class="badge ${m.status==='read'?'badge-green':'badge-yellow'}">${m.status==='read'?'مقروء':'غير مقروء'}</span></td>
+      <td>${m.created_at?new Date(m.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="empty-cell">لا توجد رسائل</td></tr>`;
+    main.innerHTML = pageHeader('الرسائل والدعم','رسائل الدعم الفني الواردة من المستخدمين.',
+      `<button class="btn-white" onclick="renderMessagesSupport()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>المُرسِل</th><th>الرسالة</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('الرسائل والدعم','') + `<div class="card">${errorHtml(e.message,'renderMessagesSupport')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: RATINGS (التقييمات)
+══════════════════════════════════════════════════════ */
+async function renderRatings() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/ratings');
+    const list = data.ratings || data.data || data || [];
+    const stars = n => '★'.repeat(Math.round(n||0)) + '☆'.repeat(5-Math.round(n||0));
+    const rows = list.map(r => `<tr>
+      <td>${r.id||'-'}</td>
+      <td>${r.reviewer_name||r.from_user||'-'}</td>
+      <td>${r.target_name||r.to_user||'-'}</td>
+      <td style="color:#F59E0B">${stars(r.rating||r.score||0)} (${r.rating||r.score||0})</td>
+      <td>${(r.comment||r.review||'').substring(0,60)}</td>
+      <td>${r.created_at?new Date(r.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد تقييمات</td></tr>`;
+    main.innerHTML = pageHeader('التقييمات','تقييمات المستخدمين والمكاتب العقارية.',
+      `<button class="btn-white" onclick="renderRatings()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>المُقيِّم</th><th>المُقيَّم</th><th>التقييم</th><th>التعليق</th><th>التاريخ</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('التقييمات','') + `<div class="card">${errorHtml(e.message,'renderRatings')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: CONTENT PAGES (إدارة المحتوى)
+══════════════════════════════════════════════════════ */
+async function renderContentPages() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/content-pages');
+    const list = data.pages || data.data || data || [];
+    const rows = list.map(p => `<tr>
+      <td>${p.id||'-'}</td>
+      <td>${p.title||p.name||'-'}</td>
+      <td>${p.type||p.slug||'-'}</td>
+      <td><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'منشور':'مخفي'}</span></td>
+      <td>${p.updated_at?new Date(p.updated_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="empty-cell">لا توجد صفحات محتوى</td></tr>`;
+    main.innerHTML = pageHeader('إدارة المحتوى','صفحات المحتوى الثابتة (سياسة الخصوصية، الشروط، إلخ).',
+      `<button class="btn-white" onclick="renderContentPages()">🔄 تحديث</button>`) +
+      `<div class="card"><div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>العنوان</th><th>النوع</th><th>الحالة</th><th>آخر تعديل</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('إدارة المحتوى','') + `<div class="card">${errorHtml(e.message,'renderContentPages')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: BACKUP (النسخ الاحتياطي)
+══════════════════════════════════════════════════════ */
+async function renderBackup() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/backup');
+    const list = data.backups || data.data || data || [];
+    const rows = Array.isArray(list) ? list.map(b => `<tr>
+      <td>${b.id||'-'}</td>
+      <td>${b.filename||b.name||'-'}</td>
+      <td>${b.size_mb?b.size_mb+'MB':'-'}</td>
+      <td><span class="badge badge-green">${b.status||'مكتمل'}</span></td>
+      <td>${b.created_at?new Date(b.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') : '';
+    main.innerHTML = pageHeader('النسخ الاحتياطي','إدارة النسخ الاحتياطية لقاعدة البيانات.',
+      `<button class="btn-primary" onclick="createBackup()">📦 إنشاء نسخة احتياطية</button>`) +
+      `<div class="card">
+        ${rows ? `<div class="table-wrap"><table class="data-table">
+          <thead><tr><th>#</th><th>اسم الملف</th><th>الحجم</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>` : emptyHtml('💾','لا توجد نسخ احتياطية بعد')}
+      </div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('النسخ الاحتياطي','') + `<div class="card">${errorHtml(e.message,'renderBackup')}</div>`;
+  }
+}
+async function createBackup() {
+  try {
+    await POST('/admin/backup/create', {});
+    toast('جاري إنشاء النسخة الاحتياطية...','success');
+    setTimeout(renderBackup, 2000);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: APP CONFIG (إعدادات التطبيق)
+══════════════════════════════════════════════════════ */
+async function renderAppConfig() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/app-config');
+    const cfg = data.config || data.settings || data || {};
+    const rows = Object.entries(cfg).map(([k,v]) => `
+      <div class="insight-row">
+        <span class="insight-label">${k}</span>
+        <span class="insight-value">${typeof v === 'boolean'
+          ? `<span class="badge ${v?'badge-green':'badge-red'}">${v?'مفعّل':'معطّل'}</span>`
+          : v}</span>
+      </div>`).join('');
+    main.innerHTML = pageHeader('إعدادات التطبيق','إعدادات وتكوين التطبيق العامة.',
+      `<button class="btn-white" onclick="renderAppConfig()">🔄 تحديث</button>`) +
+      `<div class="card"><h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚙️ إعدادات النظام</h3>
+        ${rows || '<p style="color:#6B7280;text-align:center;padding:20px">لا توجد إعدادات</p>'}
+      </div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('إعدادات التطبيق','') + `<div class="card">${errorHtml(e.message,'renderAppConfig')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: APP UPDATES (إدارة التحديثات)
+══════════════════════════════════════════════════════ */
+async function renderAppUpdates() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/app-updates');
+    const list = data.updates || data.data || data || [];
+    const rows = Array.isArray(list) ? list.map(u => `<tr>
+      <td>${u.id||'-'}</td>
+      <td>${u.version||'-'}</td>
+      <td>${u.platform||'-'}</td>
+      <td>${(u.notes||u.description||'').substring(0,60)}</td>
+      <td><span class="badge ${u.is_forced||u.force_update?'badge-red':'badge-green'}">${u.is_forced||u.force_update?'إجباري':'اختياري'}</span></td>
+      <td>${u.created_at?new Date(u.created_at).toLocaleDateString('ar'):'–'}</td>
+    </tr>`).join('') : '';
+    main.innerHTML = pageHeader('إدارة التحديثات','تحديثات التطبيق للأندرويد والـ iOS.',
+      `<button class="btn-white" onclick="renderAppUpdates()">🔄 تحديث</button>`) +
+      `<div class="card">
+        ${rows ? `<div class="table-wrap"><table class="data-table">
+          <thead><tr><th>#</th><th>الإصدار</th><th>المنصة</th><th>الملاحظات</th><th>النوع</th><th>التاريخ</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>` : emptyHtml('📱','لا توجد تحديثات مسجّلة')}
+      </div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('إدارة التحديثات','') + `<div class="card">${errorHtml(e.message,'renderAppUpdates')}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PAGE: PACKAGES (الباقات)
+══════════════════════════════════════════════════════ */
+async function renderPackages() {
+  const main = document.getElementById('main-content');
+  try {
+    const data = await GET('/admin/packages');
+    const list = data.packages || data.data || data || [];
+    const rows = Array.isArray(list) ? list.map(p => `<tr>
+      <td>${p.id||'-'}</td>
+      <td>${p.name||p.name_ar||'-'}</td>
+      <td>${p.price||'-'} ${p.currency||'USD'}</td>
+      <td>${p.duration_days?p.duration_days+' يوم':'-'}</td>
+      <td>${p.max_properties||p.properties_limit||'-'}</td>
+      <td><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'نشط':'معطّل'}</span></td>
+    </tr>`).join('') : '';
+    main.innerHTML = pageHeader('الباقات','إدارة باقات الاشتراك المتاحة في التطبيق.',
+      `<button class="btn-white" onclick="renderPackages()">🔄 تحديث</button>`) +
+      `<div class="card">
+        ${rows ? `<div class="table-wrap"><table class="data-table">
+          <thead><tr><th>#</th><th>الباقة</th><th>السعر</th><th>المدة</th><th>الحد الأقصى للعقارات</th><th>الحالة</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>` : emptyHtml('📦','لا توجد باقات مُعرَّفة')}
+      </div>`;
+  } catch(e) {
+    main.innerHTML = pageHeader('الباقات','') + `<div class="card">${errorHtml(e.message,'renderPackages')}</div>`;
+  }
 }
 
 /* ── Mobile Sidebar ────────────────────────────────── */
