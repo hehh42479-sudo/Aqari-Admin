@@ -1145,3 +1145,222 @@ td .btn-action + .btn-action {
   .offline-banner, .welcome-modal { display: none !important; }
   .main-content { margin-right: 0; padding: 20px; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   NEW ELEMENTS — v2.0 (Properties, Users, Modals)
+═══════════════════════════════════════════════════════ */
+
+/* ── Property Thumbnail ─────────────────────────────── */
+.prop-thumb {
+  width: 64px; height: 48px;
+  object-fit: cover; border-radius: 8px;
+  border: 1.5px solid var(--beige-dark);
+  display: block;
+  transition: transform .2s;
+}
+.prop-thumb:hover { transform: scale(1.08); }
+.prop-thumb-empty {
+  width: 64px; height: 48px;
+  background: var(--beige-mid);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  border: 1.5px solid var(--beige-dark);
+}
+
+/* ── User Thumbnail ─────────────────────────────────── */
+.user-thumb {
+  width: 44px; height: 44px;
+  object-fit: cover; border-radius: 50%;
+  border: 2px solid var(--gold);
+  display: block; cursor: pointer;
+  transition: transform .2s;
+}
+.user-thumb:hover { transform: scale(1.1); }
+.user-thumb-empty {
+  width: 44px; height: 44px;
+  background: var(--beige-mid);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  border: 2px solid var(--beige-dark);
+}
+
+/* ── Action Buttons Wrap ────────────────────────────── */
+.action-btns-wrap {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+.user-actions-menu {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+
+/* ── Dropdown Menu ──────────────────────────────────── */
+.dropdown-wrap {
+  position: relative; display: inline-block;
+}
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%; right: 0;
+  z-index: 300;
+  min-width: 180px;
+  background: var(--white);
+  border: 1.5px solid var(--beige-dark);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: fadeIn .15s;
+}
+.dropdown-menu.open { display: block; }
+.dropdown-menu button {
+  display: block; width: 100%;
+  padding: 11px 16px;
+  text-align: right;
+  background: none; border: none;
+  font-family: 'Cairo', sans-serif;
+  font-size: 13px; font-weight: 600;
+  color: var(--text-dark); cursor: pointer;
+  transition: background .15s;
+}
+.dropdown-menu button:hover { background: var(--beige-mid); }
+
+/* ── Button variants ────────────────────────────────── */
+.btn-more {
+  background: var(--beige-mid) !important;
+  color: var(--text-mid) !important;
+  border: 1.5px solid var(--beige-dark) !important;
+}
+.btn-more:hover { background: var(--beige-dark) !important; }
+.btn-warn {
+  background: #FEF3C7 !important;
+  color: #92400E !important;
+  border: 1.5px solid #F59E0B !important;
+}
+.btn-warn:hover { background: #FDE68A !important; }
+.btn-gold {
+  background: var(--gold-bg) !important;
+  color: var(--brown-dark) !important;
+  border: 1.5px solid var(--gold) !important;
+  font-weight: 700;
+}
+.btn-gold:hover { background: var(--gold-pale) !important; }
+
+/* ── Detail Grid (Profile/Property modal) ───────────── */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.detail-item {
+  background: var(--beige);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.detail-label {
+  font-size: 11px; font-weight: 700; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.detail-val {
+  font-size: 14px; font-weight: 600; color: var(--text-dark);
+  word-break: break-word;
+}
+@media (max-width: 480px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Image Gallery (Property detail) ───────────────── */
+.img-gallery {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  justify-content: center; margin-bottom: 12px;
+}
+.gallery-img {
+  width: 120px; height: 80px;
+  object-fit: cover; border-radius: 10px;
+  border: 1.5px solid var(--beige-dark);
+  cursor: pointer; transition: transform .2s, box-shadow .2s;
+}
+.gallery-img:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Chat Messages List ─────────────────────────────── */
+.chat-messages-list {
+  max-height: 55vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 4px;
+}
+.chat-msg-item {
+  background: var(--beige);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px; line-height: 1.6;
+  border-right: 3px solid var(--gold);
+}
+
+/* ── btn-primary variant ────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px; border-radius: var(--radius-md);
+  background: var(--gold); color: var(--brown-dark);
+  font-family: 'Cairo', sans-serif; font-weight: 700; font-size: 14px;
+  border: none; cursor: pointer; transition: all .2s;
+}
+.btn-primary:hover { background: var(--gold-light); }
+
+/* ── Perms grid extended (11 perms, 2 cols on tablet) ─ */
+.perms-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+@media (max-width: 480px) {
+  .perms-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Insights grid ──────────────────────────────────── */
+.insights-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+}
+@media (max-width: 768px) {
+  .insights-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Settings responsive ────────────────────────────── */
+.insight-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--beige-mid);
+  gap: 8px; flex-wrap: wrap;
+}
+.insight-row:last-child { border-bottom: none; }
+.insight-label { font-weight: 600; color: var(--text-mid); font-size: 13px; flex-shrink: 0; }
+.insight-value { color: var(--text-dark); font-size: 13px; text-align: left; word-break: break-word; }
+
+/* ── Page header actions responsive ────────────────── */
+@media (max-width: 600px) {
+  .page-header-actions {
+    display: flex; flex-wrap: wrap; gap: 8px; width: 100%;
+  }
+  .page-header-actions > button {
+    flex: 1; min-width: 120px;
+    justify-content: center;
+  }
+  .action-btns-wrap { gap: 4px; }
+  .user-actions-menu { gap: 4px; }
+  .prop-thumb, .prop-thumb-empty { width: 48px; height: 36px; }
+  .user-thumb, .user-thumb-empty { width: 36px; height: 36px; }
+  .dropdown-menu { right: auto; left: 0; }
+}
+
+/* ── Table actions cell auto-wrap ───────────────────── */
+td.actions-cell {
+  min-width: 120px;
+}
+.action-btns-wrap .btn-action,
+.user-actions-menu .btn-action,
+.action-btns .btn-action {
+  white-space: nowrap;
+}
