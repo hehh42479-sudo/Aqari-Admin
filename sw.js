@@ -6,7 +6,7 @@
    - Pages: Network-first with offline fallback
    ═══════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'aqari-plus-admin-v3';  // bumped to clear old caches
+const CACHE_NAME    = 'aqari-plus-admin-v4';  // v4: real logo + full mobile responsive fix
 const API_ORIGIN    = 'https://aqari-backend.onrender.com';
 const OFFLINE_URL   = '/Aqari-Admin/offline.html';
 
@@ -19,6 +19,8 @@ const PRECACHE_ASSETS = [
   '/Aqari-Admin/manifest.json',
   '/Aqari-Admin/icon-192.png',
   '/Aqari-Admin/icon-512.png',
+  '/Aqari-Admin/apple-touch-icon.png',
+  '/Aqari-Admin/favicon-32.png',
 ];
 
 /* ── Install: pre-cache static assets ─────────────────── */

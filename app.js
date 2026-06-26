@@ -411,8 +411,18 @@ async function renderUsersTable(type) {
 
     const thead = `<tr>${cfg.cols.map(c=>`<th>${c}</th>`).join('')}</tr>`;
     const tbody = rows.length
-      ? rows.map(r => `<tr>${cfg.row(r,perm).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')
-      : `<tr><td colspan="${cfg.cols.length}">${emptyHtml('📂','لا توجد بيانات')}</td></tr>`;
+      ? rows.map(r => {
+          const cells = cfg.row(r,perm);
+          // Check if last cell contains action buttons
+          return `<tr>${cells.map((c,i) => {
+            const isActions = i === cells.length - 1 && (String(c).includes('btn-action') || String(c).includes('onclick'));
+            const cellClass = isActions ? ' class="actions-cell"' : '';
+            // Wrap action buttons in a flex container
+            const cellContent = isActions ? `<div class="action-btns">${c}</div>` : c;
+            return `<td data-label="${cfg.cols[i]||''}"${cellClass}>${cellContent}</td>`;
+          }).join('')}</tr>`;
+        }).join('')
+      : `<tr><td colspan="${cfg.cols.length}" class="empty-cell">${emptyHtml('📂','لا توجد بيانات')}</td></tr>`;
 
     main.innerHTML = pageHeader(cfg.title, cfg.subtitle,
       `<button class="btn-white" onclick="renderUsersTable('${type}')">🔄 تحديث</button>`) +
@@ -466,16 +476,16 @@ async function renderSeekerRequests() {
     const thead = `<tr><th>رقم الطلب</th><th>الباحث</th><th>المدينة</th><th>النوع</th><th>الميزانية</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.id}</td>
-          <td>${r.user_name||r.seeker_name||r.phone||'—'}</td>
-          <td>${r.city||'—'}</td>
-          <td>${r.property_type||'—'}</td>
-          <td>${fmtNum(r.budget)||fmtNum(r.max_price)||'—'}</td>
-          <td>${badgeForStatus(r.status||'active')}</td>
-          <td>${fmtDate(r.created_at)}</td>
-          <td><button class="btn-action btn-delete btn-sm" onclick="deleteRequest(${r.id})">حذف</button></td>
+          <td data-label="رقم الطلب">${r.id}</td>
+          <td data-label="الباحث">${r.user_name||r.seeker_name||r.phone||'—'}</td>
+          <td data-label="المدينة">${r.city||'—'}</td>
+          <td data-label="النوع">${r.property_type||'—'}</td>
+          <td data-label="الميزانية">${fmtNum(r.budget)||fmtNum(r.max_price)||'—'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
+          <td data-label="التاريخ">${fmtDate(r.created_at)}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-delete btn-sm" onclick="deleteRequest(${r.id})">حذف</button></div></td>
         </tr>`).join('')
-      : `<tr><td colspan="8">${emptyHtml('📋','لا توجد طلبات')}</td></tr>`;
+      : `<tr><td colspan="8" class="empty-cell">${emptyHtml('📋','لا توجد طلبات')}</td></tr>`;
     main.innerHTML = pageHeader('طلبات الباحثين','جميع طلبات البحث عن العقارات.',
       `<button class="btn-white" onclick="renderSeekerRequests()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -519,17 +529,17 @@ async function renderSupervisors() {
       ? rows.map(r=>{
           const perms = Array.isArray(r.permissions)?r.permissions:[];
           return `<tr>
-            <td><strong>${r.name||'—'}</strong></td>
-            <td>${r.phone||'—'}</td>
-            <td style="max-width:260px">${perms.map(p=>`<span class="badge badge-gold" style="margin:2px">${PERM_LABELS[p]||p}</span>`).join(' ')||'لا توجد صلاحيات'}</td>
-            <td>${fmtDate(r.created_at)}</td>
-            <td>
+            <td data-label="الاسم"><strong>${r.name||'—'}</strong></td>
+            <td data-label="الهاتف">${r.phone||'—'}</td>
+            <td data-label="الصلاحيات">${perms.map(p=>`<span class="badge badge-gold" style="margin:2px">${PERM_LABELS[p]||p}</span>`).join(' ')||'لا توجد صلاحيات'}</td>
+            <td data-label="تاريخ الإنشاء">${fmtDate(r.created_at)}</td>
+            <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
               <button class="btn-action btn-view btn-sm" onclick="editSupervisor(${r.id},'${r.name}','${r.phone}',${JSON.stringify(perms)})">تعديل</button>
               <button class="btn-action btn-delete btn-sm" onclick="deleteSupervisor(${r.id})">حذف</button>
-            </td>
+            </div></td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="5">${emptyHtml('👮','لا يوجد مشرفون','أضف مشرفاً أولاً')}</td></tr>`;
+      : `<tr><td colspan="5" class="empty-cell">${emptyHtml('👮','لا يوجد مشرفون','أضف مشرفاً أولاً')}</td></tr>`;
     main.innerHTML = pageHeader('المشرفون والصلاحيات','إدارة حسابات المشرفين وصلاحياتهم.',
       `<button class="btn-white" onclick="showAddSupervisorModal()">+ إضافة مشرف</button>`) +
       `<div class="card"><div class="table-container">
@@ -621,13 +631,13 @@ async function renderSubscriptions() {
     const thead = `<tr><th>المكتب/المستخدم</th><th>الباقة</th><th>الحالة</th><th>تاريخ الانتهاء</th><th>تاريخ الإنشاء</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.user_name||r.office_name||r.user_id||'—'}</td>
-          <td>${r.package_name||r.plan_type||r.packageType||'—'}</td>
-          <td>${badgeForStatus(r.status||'active')}</td>
-          <td>${fmtDate(r.expiry_date||r.expires_at)}</td>
-          <td>${fmtDate(r.created_at)}</td>
+          <td data-label="المكتب/المستخدم">${r.user_name||r.office_name||r.user_id||'—'}</td>
+          <td data-label="الباقة">${r.package_name||r.plan_type||r.packageType||'—'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
+          <td data-label="تاريخ الانتهاء">${fmtDate(r.expiry_date||r.expires_at)}</td>
+          <td data-label="تاريخ الإنشاء">${fmtDate(r.created_at)}</td>
         </tr>`).join('')
-      : `<tr><td colspan="5">${emptyHtml('⭐','لا توجد اشتراكات')}</td></tr>`;
+      : `<tr><td colspan="5" class="empty-cell">${emptyHtml('⭐','لا توجد اشتراكات')}</td></tr>`;
     main.innerHTML = pageHeader('الباقات والاشتراكات','إدارة اشتراكات المكاتب.',
       `<button class="btn-white" onclick="showManualSubModal()">+ اشتراك يدوي</button>`) +
       `<div class="card"><div class="table-container">
@@ -670,18 +680,18 @@ async function renderPaymentReviews() {
     const thead = `<tr><th>المستخدم</th><th>رقم الحوالة</th><th>الباقة</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.user_name||r.user_id||'—'} <br><small style="color:#6B7280">${r.user_phone||''}</small></td>
-          <td><code>${r.transaction_ref||'—'}</code></td>
-          <td>${r.package_name||r.package_id||r.payment_type||'—'}</td>
-          <td>${r.amount?fmtNum(r.amount)+' '+(r.currency||'USD'):'—'}</td>
-          <td>${badgeForStatus(r.status)}</td>
-          <td>${fmtDate(r.created_at)}</td>
-          <td>${r.status==='pending'?`
+          <td data-label="المستخدم">${r.user_name||r.user_id||'—'}<br><small style="color:var(--text-light)">${r.user_phone||''}</small></td>
+          <td data-label="رقم الحوالة"><code style="font-size:12px;word-break:break-all">${r.transaction_ref||'—'}</code></td>
+          <td data-label="الباقة">${r.package_name||r.package_id||r.payment_type||'—'}</td>
+          <td data-label="المبلغ">${r.amount?fmtNum(r.amount)+' '+(r.currency||'USD'):'—'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status)}</td>
+          <td data-label="التاريخ">${fmtDate(r.created_at)}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns">${r.status==='pending'?`
             <button class="btn-action btn-approve btn-sm" onclick="approvePayment(${r.id})">موافقة</button>
             <button class="btn-action btn-reject btn-sm" onclick="rejectPayment(${r.id})">رفض</button>`:'—'}
-          </td>
+          </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="7">${emptyHtml('💳','لا توجد مدفوعات معلقة')}</td></tr>`;
+      : `<tr><td colspan="7" class="empty-cell">${emptyHtml('💳','لا توجد مدفوعات معلقة')}</td></tr>`;
     main.innerHTML = pageHeader('مراجعة المدفوعات','مراجعة الحوالات وإثباتات الدفع.',
       `<button class="btn-white" onclick="renderPaymentReviews()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -721,17 +731,17 @@ async function renderVerifications() {
     const thead = `<tr><th>المستخدم</th><th>الدور</th><th>نوع الوثيقة</th><th>الحالة</th><th>تاريخ الإرسال</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.user_name||r.user_id||'—'}</td>
-          <td>${r.user_role||'—'}</td>
-          <td>${r.doc_type||'—'}</td>
-          <td>${badgeForStatus(r.status)}</td>
-          <td>${fmtDate(r.submitted_at)}</td>
-          <td>${r.status==='pending'?`
+          <td data-label="المستخدم">${r.user_name||r.user_id||'—'}</td>
+          <td data-label="الدور">${r.user_role||'—'}</td>
+          <td data-label="نوع الوثيقة">${r.doc_type||'—'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status)}</td>
+          <td data-label="تاريخ الإرسال">${fmtDate(r.submitted_at)}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns">${r.status==='pending'?`
             <button class="btn-action btn-approve btn-sm" onclick="approveVerif(${r.id})">موافقة</button>
             <button class="btn-action btn-reject btn-sm" onclick="rejectVerif(${r.id})">رفض</button>`:'—'}
-          </td>
+          </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="6">${emptyHtml('✅','لا توجد طلبات توثيق معلقة')}</td></tr>`;
+      : `<tr><td colspan="6" class="empty-cell">${emptyHtml('✅','لا توجد طلبات توثيق معلقة')}</td></tr>`;
     main.innerHTML = pageHeader('طلبات التوثيق','مراجعة طلبات التوثيق الرسمي.',
       `<button class="btn-white" onclick="renderVerifications()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -771,17 +781,17 @@ async function renderAllEmployees() {
     const thead = `<tr><th>الاسم</th><th>الهاتف</th><th>الحالة</th><th>المكتب</th><th>تاريخ الإضافة</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.name||'—'}</td>
-          <td>${r.phone||'—'}</td>
-          <td>${badgeForStatus(r.status||'active')}</td>
-          <td>${r.office_name||r.office_id||'—'}</td>
-          <td>${fmtDate(r.created_at)}</td>
-          <td>
+          <td data-label="الاسم">${r.name||'—'}</td>
+          <td data-label="الهاتف">${r.phone||'—'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
+          <td data-label="المكتب">${r.office_name||r.office_id||'—'}</td>
+          <td data-label="تاريخ الإضافة">${fmtDate(r.created_at)}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
             <button class="btn-action btn-view btn-sm" onclick="toggleEmployee(${r.id})">${r.status==='active'?'تعطيل':'تفعيل'}</button>
             <button class="btn-action btn-delete btn-sm" onclick="deleteEmployee(${r.id})">حذف</button>
-          </td>
+          </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="6">${emptyHtml('👔','لا يوجد موظفون')}</td></tr>`;
+      : `<tr><td colspan="6" class="empty-cell">${emptyHtml('👔','لا يوجد موظفون')}</td></tr>`;
     main.innerHTML = pageHeader('إدارة الموظفين','جميع موظفي المكاتب المسجلين.',
       `<button class="btn-white" onclick="renderAllEmployees()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -819,12 +829,12 @@ async function renderNotifications() {
     const thead = `<tr><th>العنوان</th><th>الرسالة</th><th>الفئة المستهدفة</th><th>تاريخ الإرسال</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td><strong>${r.title||'—'}</strong></td>
-          <td>${r.message||'—'}</td>
-          <td><span class="badge badge-gold">${r.target_role||'الكل'}</span></td>
-          <td>${fmtDate(r.created_at)}</td>
+          <td data-label="العنوان"><strong>${r.title||'—'}</strong></td>
+          <td data-label="الرسالة">${r.message||'—'}</td>
+          <td data-label="الفئة المستهدفة"><span class="badge badge-gold">${r.target_role||'الكل'}</span></td>
+          <td data-label="تاريخ الإرسال">${fmtDate(r.created_at)}</td>
         </tr>`).join('')
-      : `<tr><td colspan="4">${emptyHtml('🔔','لا توجد إشعارات')}</td></tr>`;
+      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('🔔','لا توجد إشعارات')}</td></tr>`;
     main.innerHTML = pageHeader('الإشعارات','إرسال وإدارة إشعارات التطبيق.',
       `<button class="btn-white" onclick="showNotifModal()">+ إشعار جديد</button>`) +
       `<div class="card"><div class="table-container">
@@ -872,16 +882,16 @@ async function renderChats() {
     const thead = `<tr><th>رقم الغرفة</th><th>المشاركون</th><th>آخر رسالة</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>#${r.id}</td>
-          <td>${r.participant_a_name||r.participant_a||'—'} ↔ ${r.participant_b_name||r.participant_b||'—'}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.last_message||'لا توجد رسائل'}</td>
-          <td>${badgeForStatus(r.status||'open')}</td>
-          <td>${fmtDate(r.created_at)}</td>
-          <td>
+          <td data-label="رقم الغرفة">#${r.id}</td>
+          <td data-label="المشاركون">${r.participant_a_name||r.participant_a||'—'} ↔ ${r.participant_b_name||r.participant_b||'—'}</td>
+          <td data-label="آخر رسالة">${r.last_message||'لا توجد رسائل'}</td>
+          <td data-label="الحالة">${badgeForStatus(r.status||'open')}</td>
+          <td data-label="التاريخ">${fmtDate(r.created_at)}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
             <button class="btn-action btn-delete btn-sm" onclick="deleteChat(${r.id})">حذف</button>
-          </td>
+          </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="6">${emptyHtml('💬','لا توجد محادثات')}</td></tr>`;
+      : `<tr><td colspan="6" class="empty-cell">${emptyHtml('💬','لا توجد محادثات')}</td></tr>`;
     main.innerHTML = pageHeader('إدارة المحادثات','مراقبة محادثات المستخدمين.',
       `<button class="btn-white" onclick="renderChats()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -946,12 +956,12 @@ async function renderActivityLogs() {
     const thead = `<tr><th>الحدث</th><th>المستخدم</th><th>التفاصيل</th><th>التاريخ</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td><span class="badge badge-gold">${r.action||r.event||'—'}</span></td>
-          <td>${r.user_name||r.admin_name||r.user_id||'—'}</td>
-          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${r.details||r.description||JSON.stringify(r.data||{}).slice(0,80)}</td>
-          <td>${fmtDate(r.created_at)}</td>
+          <td data-label="الحدث"><span class="badge badge-gold">${r.action||r.event||'—'}</span></td>
+          <td data-label="المستخدم">${r.user_name||r.admin_name||r.user_id||'—'}</td>
+          <td data-label="التفاصيل">${r.details||r.description||JSON.stringify(r.data||{}).slice(0,80)}</td>
+          <td data-label="التاريخ">${fmtDate(r.created_at)}</td>
         </tr>`).join('')
-      : `<tr><td colspan="4">${emptyHtml('📜','لا توجد سجلات')}</td></tr>`;
+      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('📜','لا توجد سجلات')}</td></tr>`;
     main.innerHTML = pageHeader('سجل الأنشطة','جميع أنشطة الإدارة المسجلة.',
       `<button class="btn-white" onclick="renderActivityLogs()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -997,11 +1007,11 @@ async function renderLocations() {
     const thead = `<tr><th>المدينة</th><th>المحافظة</th><th>الإجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.name||r.city_name||'—'}</td>
-          <td>${r.governorate||r.governorate_name||'—'}</td>
-          <td><button class="btn-action btn-delete btn-sm" onclick="deleteCity(${r.id})">حذف</button></td>
+          <td data-label="المدينة">${r.name||r.city_name||'—'}</td>
+          <td data-label="المحافظة">${r.governorate||r.governorate_name||'—'}</td>
+          <td data-label="الإجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-delete btn-sm" onclick="deleteCity(${r.id})">حذف</button></div></td>
         </tr>`).join('')
-      : `<tr><td colspan="3">${emptyHtml('📍','لا توجد مدن')}</td></tr>`;
+      : `<tr><td colspan="3" class="empty-cell">${emptyHtml('📍','لا توجد مدن')}</td></tr>`;
     main.innerHTML = pageHeader('المواقع الجغرافية','إدارة المدن والمناطق.',
       `<button class="btn-white" onclick="showAddCityModal()">+ إضافة مدينة</button>`) +
       `<div class="card"><div class="table-container">
@@ -1048,11 +1058,11 @@ async function renderPropertyTypes() {
     const thead = `<tr><th>النوع</th><th>الوصف</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.name||r.type_name||'—'}</td>
-          <td>${r.description||'—'}</td>
-          <td><button class="btn-action btn-delete btn-sm" onclick="deletePropertyType(${r.id})">حذف</button></td>
+          <td data-label="النوع">${r.name||r.type_name||'—'}</td>
+          <td data-label="الوصف">${r.description||'—'}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-delete btn-sm" onclick="deletePropertyType(${r.id})">حذف</button></div></td>
         </tr>`).join('')
-      : `<tr><td colspan="3">${emptyHtml('🏗️','لا توجد أنواع عقارات')}</td></tr>`;
+      : `<tr><td colspan="3" class="empty-cell">${emptyHtml('🏗️','لا توجد أنواع عقارات')}</td></tr>`;
     main.innerHTML = pageHeader('أنواع العقارات','إدارة أنواع العقارات المتاحة.',
       `<button class="btn-white" onclick="renderPropertyTypes()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -1108,12 +1118,12 @@ async function renderAds() {
     const thead = `<tr><th>العنوان</th><th>الرابط</th><th>الحالة</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.title||'—'}</td>
-          <td><a href="${r.url||'#'}" target="_blank" style="color:var(--gold,#C59D50)">${r.url||'—'}</a></td>
-          <td>${badgeForStatus(r.status||'active')}</td>
-          <td><button class="btn-action btn-delete btn-sm" onclick="deleteAd(${r.id})">حذف</button></td>
+          <td data-label="العنوان">${r.title||'—'}</td>
+          <td data-label="الرابط"><a href="${r.url||'#'}" target="_blank" style="color:var(--gold)">${(r.url||'—').substring(0,40)}</a></td>
+          <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-delete btn-sm" onclick="deleteAd(${r.id})">حذف</button></div></td>
         </tr>`).join('')
-      : `<tr><td colspan="4">${emptyHtml('📣','لا توجد إعلانات')}</td></tr>`;
+      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('📣','لا توجد إعلانات')}</td></tr>`;
     main.innerHTML = pageHeader('الإعلانات','إدارة الإعلانات في التطبيق.',
       `<button class="btn-white" onclick="renderAds()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
@@ -1141,12 +1151,12 @@ async function renderSecurity() {
     const thead = `<tr><th>المستخدم</th><th>الهاتف</th><th>السبب</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>`<tr>
-          <td>${r.name||r.user_id||'—'}</td>
-          <td>${r.phone||'—'}</td>
-          <td>${r.reason||'—'}</td>
-          <td><button class="btn-action btn-approve btn-sm" onclick="unbanUser(${r.id||r.user_id})">إلغاء الحظر</button></td>
+          <td data-label="المستخدم">${r.name||r.user_id||'—'}</td>
+          <td data-label="الهاتف">${r.phone||'—'}</td>
+          <td data-label="السبب">${r.reason||'—'}</td>
+          <td data-label="إجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-approve btn-sm" onclick="unbanUser(${r.id||r.user_id})">إلغاء الحظر</button></div></td>
         </tr>`).join('')
-      : `<tr><td colspan="4">${emptyHtml('🔒','لا يوجد مستخدمون محظورون')}</td></tr>`;
+      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('🔒','لا يوجد مستخدمون محظورون')}</td></tr>`;
     main.innerHTML = pageHeader('إدارة الأمان','إدارة المستخدمين المحظورين.',
       `<button class="btn-white" onclick="showBanModal()">+ حظر مستخدم</button>`) +
       `<div class="card"><div class="table-container">
@@ -1258,12 +1268,12 @@ async function renderPayments() {
     const data = await GET('/admin/payments');
     const list = data.payments || data.data || data || [];
     const rows = list.map(p => `<tr>
-      <td>${p.id||'-'}</td>
-      <td>${p.user_name||p.phone||'-'}</td>
-      <td>${p.package_name||p.type||'-'}</td>
-      <td>${p.amount||'-'} ${p.currency||'USD'}</td>
-      <td><span class="badge ${p.status==='completed'?'badge-green':p.status==='pending'?'badge-yellow':'badge-red'}">${p.status||'-'}</span></td>
-      <td>${p.created_at?new Date(p.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${p.id||'-'}</td>
+      <td data-label="المستخدم">${p.user_name||p.phone||'-'}</td>
+      <td data-label="الباقة">${p.package_name||p.type||'-'}</td>
+      <td data-label="المبلغ">${p.amount||'-'} ${p.currency||'USD'}</td>
+      <td data-label="الحالة"><span class="badge ${p.status==='completed'?'badge-green':p.status==='pending'?'badge-yellow':'badge-red'}">${p.status||'-'}</span></td>
+      <td data-label="التاريخ">${p.created_at?new Date(p.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد مدفوعات</td></tr>`;
     main.innerHTML = pageHeader('المدفوعات','سجل جميع المدفوعات في النظام.',
       `<button class="btn-white" onclick="renderPayments()">🔄 تحديث</button>`) +
@@ -1284,14 +1294,14 @@ async function renderFeaturedProperties() {
     const data = await GET('/admin/properties/featured');
     const list = data.properties || data.data || data || [];
     const rows = list.map(p => `<tr>
-      <td>${p.id||'-'}</td>
-      <td>${p.title||p.name||'-'}</td>
-      <td>${p.owner_name||p.user_name||'-'}</td>
-      <td>${p.price?p.price.toLocaleString('ar'):'-'}</td>
-      <td><span class="badge badge-green">مميّز</span></td>
-      <td>
-        <button class="btn-action btn-delete" onclick="removeFeatured(${p.id})">إلغاء التمييز</button>
-      </td>
+      <td data-label="#">${p.id||'-'}</td>
+      <td data-label="العقار">${p.title||p.name||'-'}</td>
+      <td data-label="المالك">${p.owner_name||p.user_name||'-'}</td>
+      <td data-label="السعر">${p.price?p.price.toLocaleString('ar'):'-'}</td>
+      <td data-label="الحالة"><span class="badge badge-green">مميّز</span></td>
+      <td data-label="إجراء" class="actions-cell"><div class="action-btns">
+        <button class="btn-action btn-delete btn-sm" onclick="removeFeatured(${p.id})">إلغاء التمييز</button>
+      </div></td>
     </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد عقارات مميزة</td></tr>`;
     main.innerHTML = pageHeader('العقارات المميزة','العقارات المعروضة بشكل مميز في التطبيق.',
       `<button class="btn-white" onclick="renderFeaturedProperties()">🔄 تحديث</button>`) +
@@ -1319,12 +1329,12 @@ async function renderComplaints() {
     const data = await GET('/admin/complaints');
     const list = data.complaints || data.data || data || [];
     const rows = list.map(c => `<tr>
-      <td>${c.id||'-'}</td>
-      <td>${c.reporter_name||c.user_name||'-'}</td>
-      <td>${c.subject||c.type||'-'}</td>
-      <td>${(c.description||c.message||'').substring(0,60)}${(c.description||'').length>60?'...':''}</td>
-      <td><span class="badge ${c.status==='resolved'?'badge-green':c.status==='pending'?'badge-yellow':'badge-red'}">${c.status||'pending'}</span></td>
-      <td>${c.created_at?new Date(c.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${c.id||'-'}</td>
+      <td data-label="المُبلِّغ">${c.reporter_name||c.user_name||'-'}</td>
+      <td data-label="الموضوع">${c.subject||c.type||'-'}</td>
+      <td data-label="الوصف">${(c.description||c.message||'').substring(0,60)}${(c.description||'').length>60?'...':''}</td>
+      <td data-label="الحالة"><span class="badge ${c.status==='resolved'?'badge-green':c.status==='pending'?'badge-yellow':'badge-red'}">${c.status||'pending'}</span></td>
+      <td data-label="التاريخ">${c.created_at?new Date(c.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد شكاوى</td></tr>`;
     main.innerHTML = pageHeader('البلاغات والشكاوى','إدارة البلاغات والشكاوى المُقدّمة من المستخدمين.',
       `<button class="btn-white" onclick="renderComplaints()">🔄 تحديث</button>`) +
@@ -1345,11 +1355,11 @@ async function renderMessagesSupport() {
     const data = await GET('/admin/messages');
     const list = data.messages || data.data || data || [];
     const rows = list.map(m => `<tr>
-      <td>${m.id||'-'}</td>
-      <td>${m.sender_name||m.from||'-'}</td>
-      <td>${(m.subject||m.message||'').substring(0,60)}${(m.subject||m.message||'').length>60?'...':''}</td>
-      <td><span class="badge ${m.status==='read'?'badge-green':'badge-yellow'}">${m.status==='read'?'مقروء':'غير مقروء'}</span></td>
-      <td>${m.created_at?new Date(m.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${m.id||'-'}</td>
+      <td data-label="المُرسِل">${m.sender_name||m.from||'-'}</td>
+      <td data-label="الرسالة">${(m.subject||m.message||'').substring(0,60)}${(m.subject||m.message||'').length>60?'...':''}</td>
+      <td data-label="الحالة"><span class="badge ${m.status==='read'?'badge-green':'badge-yellow'}">${m.status==='read'?'مقروء':'غير مقروء'}</span></td>
+      <td data-label="التاريخ">${m.created_at?new Date(m.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') || `<tr><td colspan="5" class="empty-cell">لا توجد رسائل</td></tr>`;
     main.innerHTML = pageHeader('الرسائل والدعم','رسائل الدعم الفني الواردة من المستخدمين.',
       `<button class="btn-white" onclick="renderMessagesSupport()">🔄 تحديث</button>`) +
@@ -1371,12 +1381,12 @@ async function renderRatings() {
     const list = data.ratings || data.data || data || [];
     const stars = n => '★'.repeat(Math.round(n||0)) + '☆'.repeat(5-Math.round(n||0));
     const rows = list.map(r => `<tr>
-      <td>${r.id||'-'}</td>
-      <td>${r.reviewer_name||r.from_user||'-'}</td>
-      <td>${r.target_name||r.to_user||'-'}</td>
-      <td style="color:#F59E0B">${stars(r.rating||r.score||0)} (${r.rating||r.score||0})</td>
-      <td>${(r.comment||r.review||'').substring(0,60)}</td>
-      <td>${r.created_at?new Date(r.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${r.id||'-'}</td>
+      <td data-label="المُقيِّم">${r.reviewer_name||r.from_user||'-'}</td>
+      <td data-label="المُقيَّم">${r.target_name||r.to_user||'-'}</td>
+      <td data-label="التقييم" style="color:#F59E0B">${stars(r.rating||r.score||0)} (${r.rating||r.score||0})</td>
+      <td data-label="التعليق">${(r.comment||r.review||'').substring(0,60)}</td>
+      <td data-label="التاريخ">${r.created_at?new Date(r.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') || `<tr><td colspan="6" class="empty-cell">لا توجد تقييمات</td></tr>`;
     main.innerHTML = pageHeader('التقييمات','تقييمات المستخدمين والمكاتب العقارية.',
       `<button class="btn-white" onclick="renderRatings()">🔄 تحديث</button>`) +
@@ -1397,11 +1407,11 @@ async function renderContentPages() {
     const data = await GET('/admin/content-pages');
     const list = data.pages || data.data || data || [];
     const rows = list.map(p => `<tr>
-      <td>${p.id||'-'}</td>
-      <td>${p.title||p.name||'-'}</td>
-      <td>${p.type||p.slug||'-'}</td>
-      <td><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'منشور':'مخفي'}</span></td>
-      <td>${p.updated_at?new Date(p.updated_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${p.id||'-'}</td>
+      <td data-label="العنوان">${p.title||p.name||'-'}</td>
+      <td data-label="النوع">${p.type||p.slug||'-'}</td>
+      <td data-label="الحالة"><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'منشور':'مخفي'}</span></td>
+      <td data-label="آخر تعديل">${p.updated_at?new Date(p.updated_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') || `<tr><td colspan="5" class="empty-cell">لا توجد صفحات محتوى</td></tr>`;
     main.innerHTML = pageHeader('إدارة المحتوى','صفحات المحتوى الثابتة (سياسة الخصوصية، الشروط، إلخ).',
       `<button class="btn-white" onclick="renderContentPages()">🔄 تحديث</button>`) +
@@ -1422,11 +1432,11 @@ async function renderBackup() {
     const data = await GET('/admin/backup');
     const list = data.backups || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(b => `<tr>
-      <td>${b.id||'-'}</td>
-      <td>${b.filename||b.name||'-'}</td>
-      <td>${b.size_mb?b.size_mb+'MB':'-'}</td>
-      <td><span class="badge badge-green">${b.status||'مكتمل'}</span></td>
-      <td>${b.created_at?new Date(b.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${b.id||'-'}</td>
+      <td data-label="اسم الملف">${b.filename||b.name||'-'}</td>
+      <td data-label="الحجم">${b.size_mb?b.size_mb+'MB':'-'}</td>
+      <td data-label="الحالة"><span class="badge badge-green">${b.status||'مكتمل'}</span></td>
+      <td data-label="التاريخ">${b.created_at?new Date(b.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('النسخ الاحتياطي','إدارة النسخ الاحتياطية لقاعدة البيانات.',
       `<button class="btn-primary" onclick="createBackup()">📦 إنشاء نسخة احتياطية</button>`) +
@@ -1481,12 +1491,12 @@ async function renderAppUpdates() {
     const data = await GET('/admin/app-updates');
     const list = data.updates || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(u => `<tr>
-      <td>${u.id||'-'}</td>
-      <td>${u.version||'-'}</td>
-      <td>${u.platform||'-'}</td>
-      <td>${(u.notes||u.description||'').substring(0,60)}</td>
-      <td><span class="badge ${u.is_forced||u.force_update?'badge-red':'badge-green'}">${u.is_forced||u.force_update?'إجباري':'اختياري'}</span></td>
-      <td>${u.created_at?new Date(u.created_at).toLocaleDateString('ar'):'–'}</td>
+      <td data-label="#">${u.id||'-'}</td>
+      <td data-label="الإصدار">${u.version||'-'}</td>
+      <td data-label="المنصة">${u.platform||'-'}</td>
+      <td data-label="الملاحظات">${(u.notes||u.description||'').substring(0,60)}</td>
+      <td data-label="النوع"><span class="badge ${u.is_forced||u.force_update?'badge-red':'badge-green'}">${u.is_forced||u.force_update?'إجباري':'اختياري'}</span></td>
+      <td data-label="التاريخ">${u.created_at?new Date(u.created_at).toLocaleDateString('ar'):'–'}</td>
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('إدارة التحديثات','تحديثات التطبيق للأندرويد والـ iOS.',
       `<button class="btn-white" onclick="renderAppUpdates()">🔄 تحديث</button>`) +
@@ -1509,12 +1519,12 @@ async function renderPackages() {
     const data = await GET('/admin/packages');
     const list = data.packages || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(p => `<tr>
-      <td>${p.id||'-'}</td>
-      <td>${p.name||p.name_ar||'-'}</td>
-      <td>${p.price||'-'} ${p.currency||'USD'}</td>
-      <td>${p.duration_days?p.duration_days+' يوم':'-'}</td>
-      <td>${p.max_properties||p.properties_limit||'-'}</td>
-      <td><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'نشط':'معطّل'}</span></td>
+      <td data-label="#">${p.id||'-'}</td>
+      <td data-label="الباقة">${p.name||p.name_ar||'-'}</td>
+      <td data-label="السعر">${p.price||'-'} ${p.currency||'USD'}</td>
+      <td data-label="المدة">${p.duration_days?p.duration_days+' يوم':'-'}</td>
+      <td data-label="الحد الأقصى">${p.max_properties||p.properties_limit||'-'}</td>
+      <td data-label="الحالة"><span class="badge ${p.is_active||p.active?'badge-green':'badge-red'}">${p.is_active||p.active?'نشط':'معطّل'}</span></td>
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('الباقات','إدارة باقات الاشتراك المتاحة في التطبيق.',
       `<button class="btn-white" onclick="renderPackages()">🔄 تحديث</button>`) +
