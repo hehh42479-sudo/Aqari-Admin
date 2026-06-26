@@ -1030,137 +1030,254 @@ async function renderSupervisors() {
   }
 }
 
-/* ── Build Permissions Grid — pure checkboxes, no JS toggle needed ── */
-function buildPermsGrid(containerId, currentPerms=[]) {
-  const checks = ALL_PERMS.map(p => `
-    <label class="perm-checkbox-label" for="${containerId}-${p}">
-      <input
-        type="checkbox"
-        class="perm-cb"
-        id="${containerId}-${p}"
+/* ══════════════════════════════════════════════════════
+   PERMISSIONS ENGINE — Pure native checkboxes, multi-select
+══════════════════════════════════════════════════════ */
+
+/**
+ * buildPermsPanel(containerId, currentPerms)
+ * Returns HTML string for a full-featured permissions selector:
+ * - Search field to filter permissions
+ * - Select All / Clear All toolbar buttons
+ * - Live checked counter badge
+ * - 21 native checkbox rows (no JS toggle tricks)
+ */
+function buildPermsPanel(containerId, currentPerms) {
+  const sel = Array.isArray(currentPerms) ? currentPerms : [];
+  const rows = ALL_PERMS.map((p, i) => {
+    const checked = sel.includes(p);
+    const icon = PERM_ICONS[p] || '🔹';
+    return `
+    <label class="perm-row" id="prow-${containerId}-${i}">
+      <input type="checkbox"
+        class="perm-native-cb"
+        data-grid="${containerId}"
+        data-idx="${i}"
         name="perm"
         value="${p}"
-        ${currentPerms.includes(p) ? 'checked' : ''}
-        onchange="syncPermLabel(this)"
-      >
-      <span class="perm-check-box">${currentPerms.includes(p)?'✓':''}</span>
-      <span class="perm-label-text">${PERM_LABELS[p]}</span>
-    </label>`).join('');
+        ${checked ? 'checked' : ''}
+        onchange="onPermChange(this)">
+      <span class="perm-row-icon">${icon}</span>
+      <span class="perm-row-label">${PERM_LABELS[p]}</span>
+      <span class="perm-row-tick">${checked ? '✓' : ''}</span>
+    </label>`;
+  }).join('');
+
   return `
-    <div class="perms-toolbar">
-      <button type="button" class="btn-action btn-view btn-sm" onclick="selectAllPerms('${containerId}')">تحديد الكل</button>
-      <button type="button" class="btn-action btn-more btn-sm" onclick="clearAllPerms('${containerId}')">إلغاء الكل</button>
-      <span class="perms-count" id="${containerId}-count">${currentPerms.length} / ${ALL_PERMS.length}</span>
+  <div class="perms-panel" id="panel-${containerId}">
+    <div class="perms-panel-toolbar">
+      <div class="perms-search-wrap">
+        <span class="perms-search-icon">🔍</span>
+        <input type="text"
+          class="perms-search-input"
+          placeholder="ابحث في الصلاحيات..."
+          oninput="filterPerms('${containerId}', this.value)">
+      </div>
+      <div class="perms-panel-actions">
+        <button type="button" class="perm-btn-all" onclick="selectAllPerms('${containerId}')">تحديد الكل</button>
+        <button type="button" class="perm-btn-none" onclick="clearAllPerms('${containerId}')">إلغاء الكل</button>
+        <span class="perms-badge" id="badge-${containerId}">${sel.length} / ${ALL_PERMS.length}</span>
+      </div>
     </div>
-    <div class="perms-grid-new" id="${containerId}">${checks}</div>`;
+    <div class="perms-rows-container" id="${containerId}">${rows}</div>
+  </div>`;
 }
 
-function syncPermLabel(cb) {
-  const box = cb.nextElementSibling;
-  if (box) box.textContent = cb.checked ? '✓' : '';
-  /* update counter */
-  const grid = cb.closest('.perms-grid-new');
-  if (!grid) return;
-  const containerId = grid.id;
-  const total   = grid.querySelectorAll('.perm-cb').length;
-  const checked = grid.querySelectorAll('.perm-cb:checked').length;
-  const counter = document.getElementById(containerId + '-count');
-  if (counter) counter.textContent = `${checked} / ${total}`;
+/* Icon map for each permission key */
+const PERM_ICONS = {
+  manage_properties:    '🏠',
+  manage_featured:      '⭐',
+  manage_owners:        '👤',
+  manage_offices:       '🏢',
+  manage_seekers:       '🔍',
+  manage_supervisors:   '👮',
+  manage_subscriptions: '🌟',
+  manage_payments:      '💰',
+  manage_verifications: '✅',
+  manage_employees:     '👔',
+  manage_chats:         '💬',
+  manage_content:       '📄',
+  manage_ads:           '📣',
+  manage_cities:        '📍',
+  manage_reports:       '📈',
+  manage_backup:        '💾',
+  manage_security:      '🔒',
+  manage_settings:      '⚙️',
+  manage_updates:       '📱',
+  manage_requests:      '📋',
+  manage_users:         '👥',
+};
+
+function onPermChange(cb) {
+  /* Sync visual tick */
+  const tick = cb.parentElement.querySelector('.perm-row-tick');
+  if (tick) tick.textContent = cb.checked ? '✓' : '';
+  /* Highlight row */
+  cb.parentElement.classList.toggle('perm-row-checked', cb.checked);
+  /* Update badge */
+  const containerId = cb.dataset.grid;
+  _updatePermBadge(containerId);
+}
+
+function _updatePermBadge(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const total   = container.querySelectorAll('.perm-native-cb').length;
+  const checked = container.querySelectorAll('.perm-native-cb:checked').length;
+  const badge   = document.getElementById('badge-' + containerId);
+  if (badge) badge.textContent = `${checked} / ${total}`;
+  /* color feedback */
+  if (badge) {
+    badge.className = 'perms-badge' + (checked === total ? ' perms-badge-full' : checked > 0 ? ' perms-badge-partial' : '');
+  }
 }
 
 function selectAllPerms(containerId) {
-  const grid = document.getElementById(containerId);
-  if (!grid) return;
-  grid.querySelectorAll('.perm-cb').forEach(cb => {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll('.perm-native-cb').forEach(cb => {
     cb.checked = true;
-    const box = cb.nextElementSibling;
-    if (box) box.textContent = '✓';
+    const tick = cb.parentElement.querySelector('.perm-row-tick');
+    if (tick) tick.textContent = '✓';
+    cb.parentElement.classList.add('perm-row-checked');
   });
-  const counter = document.getElementById(containerId + '-count');
-  if (counter) counter.textContent = `${ALL_PERMS.length} / ${ALL_PERMS.length}`;
+  _updatePermBadge(containerId);
 }
 
 function clearAllPerms(containerId) {
-  const grid = document.getElementById(containerId);
-  if (!grid) return;
-  grid.querySelectorAll('.perm-cb').forEach(cb => {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll('.perm-native-cb').forEach(cb => {
     cb.checked = false;
-    const box = cb.nextElementSibling;
-    if (box) box.textContent = '';
+    const tick = cb.parentElement.querySelector('.perm-row-tick');
+    if (tick) tick.textContent = '';
+    cb.parentElement.classList.remove('perm-row-checked');
   });
-  const counter = document.getElementById(containerId + '-count');
-  if (counter) counter.textContent = `0 / ${ALL_PERMS.length}`;
+  _updatePermBadge(containerId);
+}
+
+function filterPerms(containerId, query) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const q = query.trim().toLowerCase();
+  container.querySelectorAll('.perm-row').forEach(row => {
+    const label = row.querySelector('.perm-row-label');
+    const text  = label ? label.textContent.toLowerCase() : '';
+    row.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
 }
 
 function getCheckedPerms(containerId) {
-  const grid = document.getElementById(containerId);
-  if (!grid) return [];
-  return [...grid.querySelectorAll('.perm-cb:checked')].map(i => i.value);
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  return [...container.querySelectorAll('.perm-native-cb:checked')].map(cb => cb.value);
 }
 
+/* Legacy compat */
+function syncPermLabel() {}
+function togglePerm() {}
+function buildPermsGrid(cid, perms) { return buildPermsPanel(cid, perms); }
+
+/* ══════════════════════════════════════════════════════
+   SUPERVISOR MODALS — wide split-layout design
+══════════════════════════════════════════════════════ */
 function showAddSupervisorModal() {
-  openModal('إضافة مشرف جديد', `
-    <div class="form-group"><label>الاسم الكامل</label><input type="text" id="sup-name" placeholder="اسم المشرف"></div>
-    <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="sup-phone" placeholder="967xxxxxxxxx أو 05xxxxxxxx"></div>
-    <div class="form-group"><label>كلمة المرور <small style="color:#888">(اختياري — الدخول يتم بالـ OTP)</small></label><input type="password" id="sup-pass" placeholder="اختياري — 6 أحرف على الأقل"></div>
-    <div class="form-group">
-      <label>الصلاحيات — اختر ما تريد منحه للمشرف</label>
-      ${buildPermsGrid('perms-add-grid', [])}
+  openWideModal('إضافة مشرف جديد', `
+    <div class="sup-modal-layout">
+      <div class="sup-modal-left">
+        <div class="sup-modal-section-title">📋 بيانات الحساب</div>
+        <div class="form-group">
+          <label>الاسم الكامل <span style="color:#9B2335">*</span></label>
+          <input type="text" id="sup-name" placeholder="مثال: أحمد محمد علي" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>رقم الهاتف <span style="color:#9B2335">*</span></label>
+          <input type="tel" id="sup-phone" placeholder="967xxxxxxxxx أو 05xxxxxxxx" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور <span class="form-label-hint">(اختياري — الدخول بالـ OTP)</span></label>
+          <input type="password" id="sup-pass" placeholder="اتركه فارغاً إذا كان الدخول بـ OTP">
+        </div>
+        <div class="sup-modal-info-box">
+          <span>💡</span>
+          <div>
+            <strong>ملاحظة:</strong> المشرف يدخل عبر OTP برقم هاتفه. كلمة المرور اختيارية فقط إذا كان النظام يدعمها.
+          </div>
+        </div>
+      </div>
+      <div class="sup-modal-right">
+        <div class="sup-modal-section-title">🔐 الصلاحيات الممنوحة</div>
+        ${buildPermsPanel('perms-add-grid', [])}
+      </div>
     </div>`,
     async () => {
       const name  = document.getElementById('sup-name').value.trim();
       const phone = document.getElementById('sup-phone').value.trim();
       const pass  = document.getElementById('sup-pass').value.trim();
       const perms = getCheckedPerms('perms-add-grid');
-      if (!name || !phone) { toast('أدخل الاسم ورقم الهاتف على الأقل','error'); return; }
+      if (!name)  { toast('أدخل اسم المشرف','error'); return; }
+      if (!phone) { toast('أدخل رقم هاتف المشرف','error'); return; }
       if (pass && pass.length < 6) { toast('كلمة المرور يجب أن تكون 6 أحرف على الأقل','error'); return; }
+      if (perms.length === 0) {
+        if (!confirm('لم تحدد أي صلاحيات. هل تريد المتابعة؟')) return;
+      }
       try {
-        await POST('/admin/supervisors', { name, phone, ...(pass?{password:pass}:{}), permissions: perms });
-        toast('تم إضافة المشرف بنجاح ✅','success');
+        await POST('/admin/supervisors', {
+          name, phone,
+          ...(pass ? { password: pass } : {}),
+          permissions: perms,
+          role: 'supervisor'
+        });
+        toast(`تم إضافة المشرف "${name}" بنجاح ✅`, 'success');
         closeModal(); renderSupervisors();
       } catch(e) { toast(e.message || 'حدث خطأ أثناء الإضافة','error'); }
     }
   );
 }
 
-/* kept for backward compat — no longer used in perms grid */
-function togglePerm(label) {
-  const cb = label.querySelector('input');
-  if (!cb) return;
-  cb.checked = !cb.checked;
-  syncPermLabel(cb);
-}
-
 function editSupervisor(id, name, phone, currentPerms) {
   const safePerms = Array.isArray(currentPerms) ? currentPerms : [];
-  openModal(`تعديل صلاحيات: ${name}`, `
-    <div class="detail-grid" style="margin-bottom:12px">
-      <div class="detail-item"><span class="detail-label">الاسم</span><span class="detail-val">${name}</span></div>
-      <div class="detail-item"><span class="detail-label">الهاتف</span><span class="detail-val">${phone}</span></div>
-    </div>
-    <div class="form-group">
-      <label>الصلاحيات — يمكنك تحديد أي مجموعة</label>
-      ${buildPermsGrid('perms-edit-grid', safePerms)}
+  openWideModal(`تعديل المشرف: ${name}`, `
+    <div class="sup-modal-layout">
+      <div class="sup-modal-left">
+        <div class="sup-modal-section-title">👤 معلومات المشرف</div>
+        <div class="sup-info-card">
+          <div class="sup-info-avatar">${(name||'م').charAt(0)}</div>
+          <div class="sup-info-details">
+            <strong>${name || '—'}</strong>
+            <span>${phone || '—'}</span>
+          </div>
+        </div>
+        <div class="sup-modal-info-box" style="margin-top:16px">
+          <span>ℹ️</span>
+          <div>حدد الصلاحيات التي تريد منحها أو سحبها من هذا المشرف. يمكنك تحديد أي عدد من الصلاحيات أو إزالتها جميعاً.</div>
+        </div>
+        <div class="sup-modal-section-title" style="margin-top:20px">📊 الصلاحيات الحالية</div>
+        <div class="sup-current-perms">
+          ${safePerms.length
+            ? safePerms.map(p => `<span class="sup-perm-tag">${PERM_ICONS[p]||'🔹'} ${PERM_LABELS[p]||p}</span>`).join('')
+            : '<span style="color:#888;font-size:13px">لا توجد صلاحيات محددة حالياً</span>'}
+        </div>
+      </div>
+      <div class="sup-modal-right">
+        <div class="sup-modal-section-title">🔐 تعديل الصلاحيات</div>
+        ${buildPermsPanel('perms-edit-grid', safePerms)}
+      </div>
     </div>`,
     async () => {
       const perms = getCheckedPerms('perms-edit-grid');
-      try {
-        await PUT(`/admin/supervisors/${id}/permissions`, { permissions: perms });
+      const save  = async (fn) => {
+        await fn();
         toast('تم تحديث الصلاحيات ✅','success');
         closeModal(); renderSupervisors();
-      } catch(e) {
-        try {
-          await PATCH(`/admin/supervisors/${id}`, { permissions: perms });
-          toast('تم تحديث الصلاحيات ✅','success');
-          closeModal(); renderSupervisors();
-        } catch(e2) {
-          try {
-            await PUT(`/admin/supervisors/${id}`, { permissions: perms });
-            toast('تم تحديث الصلاحيات ✅','success');
-            closeModal(); renderSupervisors();
-          } catch(e3) { toast(e3.message || 'تعذر حفظ الصلاحيات','error'); }
-        }
-      }
+      };
+      try {
+        await save(() => PUT(`/admin/supervisors/${id}/permissions`, { permissions: perms }));
+      } catch(e1) { try {
+        await save(() => PATCH(`/admin/supervisors/${id}`, { permissions: perms }));
+      } catch(e2) { try {
+        await save(() => PUT(`/admin/supervisors/${id}`, { permissions: perms }));
+      } catch(e3) { toast(e3.message || 'تعذر حفظ الصلاحيات — تحقق من الاتصال بالخادم','error'); } } }
     }
   );
 }
@@ -2732,10 +2849,11 @@ function showAddUpdateModal() {
 }
 
 /* ══════════════════════════════════════════════════════
-   MODAL SYSTEM
+   MODAL SYSTEM — standard + wide variants
 ══════════════════════════════════════════════════════ */
 let _modalConfirm = null;
-function openModal(title, bodyHtml, onConfirm) {
+
+function _createModal(title, bodyHtml, onConfirm, extraClass) {
   _modalConfirm = onConfirm;
   const existing = document.getElementById('modal-overlay');
   if (existing) existing.remove();
@@ -2744,7 +2862,7 @@ function openModal(title, bodyHtml, onConfirm) {
   el.className = 'modal-overlay';
   const hasConfirm = typeof onConfirm === 'function';
   el.innerHTML = `
-    <div class="modal">
+    <div class="modal ${extraClass||''}">
       <div class="modal-header">
         <span class="modal-title">${title}</span>
         <button class="modal-close" onclick="closeModal()">✕</button>
@@ -2753,16 +2871,24 @@ function openModal(title, bodyHtml, onConfirm) {
       <div class="modal-footer">
         ${hasConfirm
           ? `<button class="btn-action btn-delete" onclick="closeModal()">إلغاء</button>
-             <button class="btn-action btn-approve" onclick="confirmModal()" style="padding:10px 20px">تأكيد</button>`
-          : `<button class="btn-action btn-approve" onclick="closeModal()" style="padding:10px 20px">إغلاق</button>`}
+             <button class="btn-action btn-approve" onclick="confirmModal()" style="padding:10px 24px;font-size:15px">حفظ ✓</button>`
+          : `<button class="btn-action btn-approve" onclick="closeModal()" style="padding:10px 24px">إغلاق</button>`}
       </div>
     </div>`;
   document.body.appendChild(el);
-  // Close on overlay click
-  el.addEventListener('click', e => {
-    if (e.target === el) closeModal();
-  });
+  el.addEventListener('click', e => { if (e.target === el) closeModal(); });
 }
+
+/** Standard modal — up to 560px */
+function openModal(title, bodyHtml, onConfirm) {
+  _createModal(title, bodyHtml, onConfirm, '');
+}
+
+/** Wide modal — up to 900px, used for supervisor add/edit */
+function openWideModal(title, bodyHtml, onConfirm) {
+  _createModal(title, bodyHtml, onConfirm, 'modal-wide');
+}
+
 function closeModal() {
   const el = document.getElementById('modal-overlay');
   if (el) el.remove();
