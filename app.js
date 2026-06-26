@@ -126,13 +126,28 @@ async function login() {
   clearLoginMessages();
   try {
     const res = await POST('/auth/verify-otp', { phone, otp });
-    const role = res.user?.role || res.userData?.role || res.role || '';
+
+    /* ── extract role from all known response shapes ── */
+    const userData = res.user || res.userData || res.data || {};
+    const role = userData.role || res.role || '';
+
     if (!['admin','super_admin','supervisor'].includes(role)) {
-      throw new Error('هذا الحساب لا يمتلك صلاحيات الإدارة.');
+      throw new Error('هذا الحساب لا يمتلك صلاحيات الإدارة. تأكد من أن رقم الهاتف صحيح وأن الحساب مصرح له.');
     }
-    const token    = res.token || res.access_token || '';
-    const userData = res.user || res.userData || {};
-    Session.set(token, { ...userData, role });
+
+    const token = res.token || res.access_token || res.accessToken || userData.token || '';
+
+    /* ── extract permissions from all possible locations ── */
+    const rawPerms = (
+      userData.permissions ||
+      userData.perms ||
+      res.permissions ||
+      res.perms ||
+      []
+    );
+    const perms = Array.isArray(rawPerms) ? rawPerms : [];
+
+    Session.set(token, { ...userData, role, permissions: perms });
     initAdminPanel();
   } catch(e) {
     showLoginError(e.message || 'تعذر تسجيل الدخول');
@@ -957,18 +972,29 @@ async function deleteRequest(id) {
 /* ══════════════════════════════════════════════════════
    PAGE: SUPERVISORS — FIXED with 11 permissions
 ══════════════════════════════════════════════════════ */
+/* ── 21 Granular Permissions — matches sidebar nav exactly ── */
 const PERM_LABELS = {
-  manage_properties:   'إدارة العقارات',
-  manage_users:        'إدارة المستخدمين',
-  manage_subscriptions:'إدارة الاشتراكات',
-  manage_requests:     'إدارة الطلبات',
-  manage_settings:     'إدارة الإعدادات',
-  manage_employees:    'إدارة الموظفين',
-  manage_cities:       'إدارة المدن',
-  manage_ads:          'إدارة الإعلانات',
-  manage_reports:      'إدارة التقارير',
-  manage_content:      'إدارة المحتوى',
-  manage_security:     'إدارة الأمان',
+  manage_properties:      'إدارة العقارات',
+  manage_featured:        'إدارة العقارات المميزة',
+  manage_owners:          'إدارة الملاك',
+  manage_offices:         'إدارة المكاتب العقارية',
+  manage_seekers:         'إدارة الباحثين',
+  manage_supervisors:     'إدارة المشرفين',
+  manage_subscriptions:   'إدارة الباقات والاشتراكات',
+  manage_payments:        'إدارة المدفوعات',
+  manage_verifications:   'إدارة طلبات التوثيق',
+  manage_employees:       'إدارة الموظفين',
+  manage_chats:           'إدارة المحادثات',
+  manage_content:         'إدارة المحتوى',
+  manage_ads:             'إدارة الإعلانات',
+  manage_cities:          'إدارة المدن وأنواع العقارات',
+  manage_reports:         'إدارة التقارير والإحصائيات',
+  manage_backup:          'إدارة النسخ الاحتياطية',
+  manage_security:        'إدارة الأمان',
+  manage_settings:        'إعدادات التطبيق',
+  manage_updates:         'إدارة التحديثات',
+  manage_requests:        'إدارة الطلبات والبلاغات',
+  manage_users:           'إدارة المستخدمين (عام)',
 };
 const ALL_PERMS = Object.keys(PERM_LABELS);
 
@@ -1004,65 +1030,136 @@ async function renderSupervisors() {
   }
 }
 
+/* ── Build Permissions Grid — pure checkboxes, no JS toggle needed ── */
 function buildPermsGrid(containerId, currentPerms=[]) {
-  return `<div class="perms-grid" id="${containerId}">
-    ${ALL_PERMS.map(p=>`
-      <label class="perm-checkbox${currentPerms.includes(p)?' checked':''}" onclick="togglePerm(this)">
-        <input type="checkbox" name="perm" value="${p}" ${currentPerms.includes(p)?'checked':''}>
-        <div class="perm-check-icon">✓</div>
-        <span class="perm-label">${PERM_LABELS[p]}</span>
-      </label>`).join('')}
-  </div>`;
+  const checks = ALL_PERMS.map(p => `
+    <label class="perm-checkbox-label" for="${containerId}-${p}">
+      <input
+        type="checkbox"
+        class="perm-cb"
+        id="${containerId}-${p}"
+        name="perm"
+        value="${p}"
+        ${currentPerms.includes(p) ? 'checked' : ''}
+        onchange="syncPermLabel(this)"
+      >
+      <span class="perm-check-box">${currentPerms.includes(p)?'✓':''}</span>
+      <span class="perm-label-text">${PERM_LABELS[p]}</span>
+    </label>`).join('');
+  return `
+    <div class="perms-toolbar">
+      <button type="button" class="btn-action btn-view btn-sm" onclick="selectAllPerms('${containerId}')">تحديد الكل</button>
+      <button type="button" class="btn-action btn-more btn-sm" onclick="clearAllPerms('${containerId}')">إلغاء الكل</button>
+      <span class="perms-count" id="${containerId}-count">${currentPerms.length} / ${ALL_PERMS.length}</span>
+    </div>
+    <div class="perms-grid-new" id="${containerId}">${checks}</div>`;
+}
+
+function syncPermLabel(cb) {
+  const box = cb.nextElementSibling;
+  if (box) box.textContent = cb.checked ? '✓' : '';
+  /* update counter */
+  const grid = cb.closest('.perms-grid-new');
+  if (!grid) return;
+  const containerId = grid.id;
+  const total   = grid.querySelectorAll('.perm-cb').length;
+  const checked = grid.querySelectorAll('.perm-cb:checked').length;
+  const counter = document.getElementById(containerId + '-count');
+  if (counter) counter.textContent = `${checked} / ${total}`;
+}
+
+function selectAllPerms(containerId) {
+  const grid = document.getElementById(containerId);
+  if (!grid) return;
+  grid.querySelectorAll('.perm-cb').forEach(cb => {
+    cb.checked = true;
+    const box = cb.nextElementSibling;
+    if (box) box.textContent = '✓';
+  });
+  const counter = document.getElementById(containerId + '-count');
+  if (counter) counter.textContent = `${ALL_PERMS.length} / ${ALL_PERMS.length}`;
+}
+
+function clearAllPerms(containerId) {
+  const grid = document.getElementById(containerId);
+  if (!grid) return;
+  grid.querySelectorAll('.perm-cb').forEach(cb => {
+    cb.checked = false;
+    const box = cb.nextElementSibling;
+    if (box) box.textContent = '';
+  });
+  const counter = document.getElementById(containerId + '-count');
+  if (counter) counter.textContent = `0 / ${ALL_PERMS.length}`;
+}
+
+function getCheckedPerms(containerId) {
+  const grid = document.getElementById(containerId);
+  if (!grid) return [];
+  return [...grid.querySelectorAll('.perm-cb:checked')].map(i => i.value);
 }
 
 function showAddSupervisorModal() {
   openModal('إضافة مشرف جديد', `
     <div class="form-group"><label>الاسم الكامل</label><input type="text" id="sup-name" placeholder="اسم المشرف"></div>
     <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="sup-phone" placeholder="967xxxxxxxxx أو 05xxxxxxxx"></div>
-    <div class="form-group"><label>كلمة المرور (للدخول بالـ OTP لا تحتاجها)</label><input type="password" id="sup-pass" placeholder="اختياري — 6 أحرف على الأقل"></div>
-    <div class="form-group"><label>الصلاحيات (اختر الصلاحيات المطلوبة)</label>
-      ${buildPermsGrid('perms-grid')}
+    <div class="form-group"><label>كلمة المرور <small style="color:#888">(اختياري — الدخول يتم بالـ OTP)</small></label><input type="password" id="sup-pass" placeholder="اختياري — 6 أحرف على الأقل"></div>
+    <div class="form-group">
+      <label>الصلاحيات — اختر ما تريد منحه للمشرف</label>
+      ${buildPermsGrid('perms-add-grid', [])}
     </div>`,
     async () => {
       const name  = document.getElementById('sup-name').value.trim();
       const phone = document.getElementById('sup-phone').value.trim();
       const pass  = document.getElementById('sup-pass').value.trim();
-      const perms = [...document.querySelectorAll('#perms-grid input:checked')].map(i=>i.value);
-      if (!name||!phone) { toast('أدخل الاسم ورقم الهاتف على الأقل','error'); return; }
+      const perms = getCheckedPerms('perms-add-grid');
+      if (!name || !phone) { toast('أدخل الاسم ورقم الهاتف على الأقل','error'); return; }
       if (pass && pass.length < 6) { toast('كلمة المرور يجب أن تكون 6 أحرف على الأقل','error'); return; }
       try {
-        await POST('/admin/supervisors', { name, phone, ...(pass?{password:pass}:{}), permissions:perms });
-        toast('تم إضافة المشرف ✅','success');
+        await POST('/admin/supervisors', { name, phone, ...(pass?{password:pass}:{}), permissions: perms });
+        toast('تم إضافة المشرف بنجاح ✅','success');
         closeModal(); renderSupervisors();
-      } catch(e) { toast(e.message,'error'); }
+      } catch(e) { toast(e.message || 'حدث خطأ أثناء الإضافة','error'); }
     }
   );
 }
 
+/* kept for backward compat — no longer used in perms grid */
 function togglePerm(label) {
-  label.classList.toggle('checked');
   const cb = label.querySelector('input');
-  cb.checked = label.classList.contains('checked');
+  if (!cb) return;
+  cb.checked = !cb.checked;
+  syncPermLabel(cb);
 }
 
 function editSupervisor(id, name, phone, currentPerms) {
+  const safePerms = Array.isArray(currentPerms) ? currentPerms : [];
   openModal(`تعديل صلاحيات: ${name}`, `
-    <p style="color:#555;margin-bottom:12px">الهاتف: <strong>${phone}</strong></p>
-    <div class="form-group"><label>الصلاحيات</label>
-      ${buildPermsGrid('perms-grid-edit', currentPerms)}
+    <div class="detail-grid" style="margin-bottom:12px">
+      <div class="detail-item"><span class="detail-label">الاسم</span><span class="detail-val">${name}</span></div>
+      <div class="detail-item"><span class="detail-label">الهاتف</span><span class="detail-val">${phone}</span></div>
+    </div>
+    <div class="form-group">
+      <label>الصلاحيات — يمكنك تحديد أي مجموعة</label>
+      ${buildPermsGrid('perms-edit-grid', safePerms)}
     </div>`,
     async () => {
-      const perms = [...document.querySelectorAll('#perms-grid-edit input:checked')].map(i=>i.value);
+      const perms = getCheckedPerms('perms-edit-grid');
       try {
-        await PUT(`/admin/supervisors/${id}/permissions`, { permissions:perms });
+        await PUT(`/admin/supervisors/${id}/permissions`, { permissions: perms });
         toast('تم تحديث الصلاحيات ✅','success');
         closeModal(); renderSupervisors();
       } catch(e) {
         try {
-          await PATCH(`/admin/supervisors/${id}`, { permissions:perms });
+          await PATCH(`/admin/supervisors/${id}`, { permissions: perms });
           toast('تم تحديث الصلاحيات ✅','success');
           closeModal(); renderSupervisors();
-        } catch(e2) { toast(e2.message,'error'); }
+        } catch(e2) {
+          try {
+            await PUT(`/admin/supervisors/${id}`, { permissions: perms });
+            toast('تم تحديث الصلاحيات ✅','success');
+            closeModal(); renderSupervisors();
+          } catch(e3) { toast(e3.message || 'تعذر حفظ الصلاحيات','error'); }
+        }
       }
     }
   );
@@ -1631,33 +1728,154 @@ async function deleteChat(id) {
 ══════════════════════════════════════════════════════ */
 async function renderReports() {
   const main = document.getElementById('main-content');
-  try {
-    const data = await GET('/admin/stats');
-    const s = data;
-    const roleRows = Object.entries(s.users_by_role||{}).map(([k,v]) =>
-      `<div class="insight-row"><span class="insight-label">${k}</span><span class="insight-value">${fmtNum(v)}</span></div>`
-    ).join('');
-    main.innerHTML = pageHeader('التقارير والإحصائيات','بيانات مباشرة من قاعدة البيانات.',
-      `<button class="btn-white" onclick="renderReports()">🔄 تحديث</button>`) +
-      `<div class="insights-grid">
-        <div class="card">
-          <h3 style="font-size:16px;font-weight:800;color:#102A43;margin-bottom:16px">📊 إحصائيات العقارات</h3>
-          <div class="insight-row"><span class="insight-label">إجمالي العقارات</span><span class="insight-value">${fmtNum(s.totalProperties||s.total_properties)}</span></div>
-          <div class="insight-row"><span class="insight-label">نشطة</span><span class="insight-value">${fmtNum(s.activeProperties||s.active_properties)}</span></div>
-          <div class="insight-row"><span class="insight-label">قيد المراجعة</span><span class="insight-value">${fmtNum(s.pendingProperties||s.pending_properties)}</span></div>
-          <div class="insight-row"><span class="insight-label">مميزة</span><span class="insight-value">${fmtNum(s.featuredProperties||s.featured_properties)}</span></div>
-          <div class="insight-row"><span class="insight-label">مُباعة</span><span class="insight-value">${fmtNum(s.soldProperties||s.sold_properties)}</span></div>
-          <div class="insight-row"><span class="insight-label">مؤجرة</span><span class="insight-value">${fmtNum(s.rentedProperties||s.rented_properties)}</span></div>
-        </div>
-        <div class="card">
-          <h3 style="font-size:16px;font-weight:800;color:#102A43;margin-bottom:16px">👥 إحصائيات المستخدمين</h3>
-          ${roleRows||'<p style="color:#6B7280">لا توجد بيانات</p>'}
-        </div>
-      </div>`;
-  } catch(e) {
-    main.innerHTML = pageHeader('التقارير والإحصائيات','') +
-      `<div class="card">${errorHtml(e.message,'renderReports')}</div>`;
+  main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري تحميل الإحصائيات...</p></div>`;
+
+  /* ── Try every possible stats endpoint — return first that succeeds ── */
+  let s = null;
+  const statEndpoints = [
+    '/admin/stats',
+    '/admin/statistics',
+    '/admin/dashboard',
+    '/admin/dashboard/stats',
+    '/admin/overview',
+    '/admin/reports',
+    '/stats',
+    '/dashboard/stats',
+  ];
+  for (const ep of statEndpoints) {
+    try {
+      const res = await fetch(API + ep, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(Session.token ? { 'Authorization': 'Bearer ' + Session.token } : {})
+        }
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        /* unwrap common wrappers */
+        s = json.stats || json.data || json.overview || json.dashboard || json;
+        if (s && typeof s === 'object') break;
+      }
+    } catch(e) { /* try next */ }
   }
+
+  /* ── If all endpoints failed, try parallel individual endpoints ── */
+  if (!s) {
+    const [propRes, userRes, subRes, verifRes, adsRes, empRes] = await Promise.allSettled([
+      fetch(API + '/admin/properties?limit=1', { headers: { 'Authorization': 'Bearer ' + Session.token } }),
+      fetch(API + '/admin/users?limit=1',      { headers: { 'Authorization': 'Bearer ' + Session.token } }),
+      fetch(API + '/admin/subscriptions?limit=1',{ headers: { 'Authorization': 'Bearer ' + Session.token } }),
+      fetch(API + '/admin/verification?limit=1', { headers: { 'Authorization': 'Bearer ' + Session.token } }),
+      fetch(API + '/admin/ads?limit=1',          { headers: { 'Authorization': 'Bearer ' + Session.token } }),
+      fetch(API + '/admin/employees?limit=1',    { headers: { 'Authorization': 'Bearer ' + Session.token } }),
+    ]);
+    const safeJson = async (r) => { try { return await r.value.json(); } catch(e) { return {}; } };
+    const [pd,ud,sd,vd,ad,ed] = await Promise.all([
+      propRes.status==='fulfilled' ? safeJson(propRes) : Promise.resolve({}),
+      userRes.status==='fulfilled' ? safeJson(userRes) : Promise.resolve({}),
+      subRes.status==='fulfilled'  ? safeJson(subRes)  : Promise.resolve({}),
+      verifRes.status==='fulfilled'? safeJson(verifRes): Promise.resolve({}),
+      adsRes.status==='fulfilled'  ? safeJson(adsRes)  : Promise.resolve({}),
+      empRes.status==='fulfilled'  ? safeJson(empRes)  : Promise.resolve({}),
+    ]);
+    s = {
+      total_properties: pd.total || pd.count || (pd.data||pd.properties||[]).length,
+      total_users:      ud.total || ud.count || (ud.data||ud.users||[]).length,
+      total_subscriptions: sd.total || sd.count || (sd.data||sd.subscriptions||[]).length,
+      total_verifications: vd.total || vd.count || (vd.data||vd.verifications||[]).length,
+      total_ads:        ad.total || ad.count || (ad.data||ad.ads||[]).length,
+      total_employees:  ed.total || ed.count || (ed.data||ed.employees||[]).length,
+      _partial: true,
+    };
+  }
+
+  /* ── Helper: pick first non-null value from multiple keys ── */
+  const pick = (...keys) => { for (const k of keys) { const v = s[k]; if (v != null && v !== '') return v; } return null; };
+  const n = (v) => v != null ? fmtNum(v) : '<span style="color:#bbb">—</span>';
+
+  /* ── Build stat cards ── */
+  const statCard = (icon, title, rows) => `
+    <div class="card report-card">
+      <h3 class="report-card-title">${icon} ${title}</h3>
+      ${rows.map(([label,val,cls=''])=>`
+        <div class="insight-row">
+          <span class="insight-label">${label}</span>
+          <span class="insight-value ${cls}">${n(val)}</span>
+        </div>`).join('')}
+    </div>`;
+
+  /* users_by_role breakdown if available */
+  const byRole = s.users_by_role || s.usersByRole || s.roles || {};
+  const ownerCount    = pick('owners','total_owners','owners_count') ?? byRole.owner   ?? byRole.owners   ?? null;
+  const officeCount   = pick('offices','total_offices','offices_count') ?? byRole.office ?? byRole.offices ?? null;
+  const seekerCount   = pick('seekers','total_seekers','seekers_count') ?? byRole.seeker ?? byRole.seekers ?? null;
+  const supervisorCnt = pick('supervisors','total_supervisors','supervisors_count') ?? byRole.supervisor ?? null;
+
+  const html = `
+    ${pageHeader('التقارير والإحصائيات',
+      s._partial ? 'بيانات جزئية — بعض نقاط النهاية غير متاحة.' : 'بيانات مباشرة من قاعدة البيانات.',
+      `<button class="btn-white" onclick="renderReports()">🔄 تحديث</button>`)}
+
+    <div class="reports-grid">
+      ${statCard('🏠','إحصائيات العقارات', [
+        ['إجمالي العقارات',      pick('totalProperties','total_properties','properties_count','properties')],
+        ['العقارات النشطة',      pick('activeProperties','active_properties','active_listings')],
+        ['قيد المراجعة',         pick('pendingProperties','pending_properties','pending_listings')],
+        ['العقارات المميزة',     pick('featuredProperties','featured_properties','featured_count')],
+        ['مُباعة / مؤجرة',       pick('soldProperties','sold_properties','rented_properties','sold_rented')],
+      ])}
+
+      ${statCard('👥','إحصائيات المستخدمين', [
+        ['إجمالي المستخدمين',  pick('totalUsers','total_users','users_count','users')],
+        ['الملاك',               ownerCount],
+        ['المكاتب العقارية',    officeCount],
+        ['الباحثون',             seekerCount],
+        ['المشرفون',             supervisorCnt ?? pick('supervisors_count','total_supervisors')],
+      ])}
+
+      ${statCard('📦','إحصائيات الاشتراكات', [
+        ['إجمالي الاشتراكات',   pick('totalSubscriptions','total_subscriptions','subscriptions_count','subscriptions')],
+        ['اشتراكات نشطة',       pick('activeSubscriptions','active_subscriptions','active_subs')],
+        ['اشتراكات منتهية',     pick('expiredSubscriptions','expired_subscriptions','expired_subs')],
+        ['إجمالي الإيرادات',    pick('totalRevenue','total_revenue','revenue','income')],
+      ])}
+
+      ${statCard('✅','إحصائيات التوثيق', [
+        ['طلبات التوثيق',       pick('totalVerifications','total_verifications','verifications_count','verifications')],
+        ['موثقة / مقبولة',      pick('approvedVerifications','approved_verifications','verified_count')],
+        ['معلقة',                pick('pendingVerifications','pending_verifications')],
+        ['مرفوضة',               pick('rejectedVerifications','rejected_verifications')],
+      ])}
+
+      ${statCard('📣','الإعلانات والمحتوى', [
+        ['إجمالي الإعلانات',    pick('totalAds','total_ads','ads_count','ads')],
+        ['إعلانات نشطة',        pick('activeAds','active_ads')],
+        ['صفحات المحتوى',       pick('totalPages','total_pages','content_pages','pages_count')],
+        ['طلبات الدعم',         pick('totalComplaints','total_complaints','complaints_count','support_requests')],
+      ])}
+
+      ${statCard('👔','الموظفون والنظام', [
+        ['إجمالي الموظفين',     pick('totalEmployees','total_employees','employees_count','employees')],
+        ['موظفون نشطون',        pick('activeEmployees','active_employees')],
+        ['محادثات نشطة',        pick('activeChats','active_chats','total_chats','chats_count')],
+        ['سجلات النشاط',        pick('activityLogs','activity_logs','logs_count')],
+      ])}
+    </div>
+
+    ${Object.keys(byRole).length > 0 ? `
+    <div class="card" style="margin-top:16px">
+      <h3 class="report-card-title">📊 توزيع المستخدمين حسب الدور</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px">
+        ${Object.entries(byRole).map(([k,v])=>`
+          <div style="background:var(--beige);border-radius:var(--radius-md);padding:12px 20px;text-align:center;min-width:100px">
+            <div style="font-size:22px;font-weight:800;color:var(--gold)">${fmtNum(v)}</div>
+            <div style="font-size:12px;color:#6B7280;margin-top:4px">${k}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  main.innerHTML = html;
 }
 
 /* ══════════════════════════════════════════════════════
