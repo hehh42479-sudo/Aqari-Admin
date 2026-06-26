@@ -190,6 +190,7 @@ const ALL_NAV = [
   { label:'مركز الطوارئ',          route:'emergency',            perm:'manage_settings',       icon:'🚨' },
   { label:'إعدادات التطبيق',       route:'app-config',           perm:'manage_settings',       icon:'🔧' },
   { label:'إدارة التحديثات',       route:'app-updates',          perm:'manage_settings',       icon:'📱' },
+  { label:'دليل الاستخدام',         route:'user-guide',           perm: null,                   icon:'📖' },
 ];
 
 /* ── Init Panel ──────────────────────────────────────── */
@@ -274,6 +275,7 @@ function navigateTo(route) {
     'emergency':            renderEmergency,
     'app-config':           renderAppConfig,
     'app-updates':          renderAppUpdates,
+    'user-guide':           renderUserGuide,
   };
   if (pages[route]) {
     main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري التحميل...</p></div>`;
@@ -1526,20 +1528,294 @@ async function renderPackages() {
   }
 }
 
+/* ══════════════════════════════════════════════════════
+   PAGE: USER GUIDE (دليل الاستخدام)
+══════════════════════════════════════════════════════ */
+function renderUserGuide() {
+  const main = document.getElementById('main-content');
+
+  const sections = [
+    {
+      icon: '📊',
+      title: 'لوحة التحكم الرئيسية',
+      desc: 'نظرة شاملة على جميع مؤشرات الأداء',
+      content: `
+        <p class="guide-content">تعرض لوحة التحكم الرئيسية أهم إحصائيات المنصة في الوقت الفعلي:</p>
+        <ul class="guide-content">
+          <li><strong>إجمالي العقارات</strong> — العدد الكلي للعقارات المسجلة</li>
+          <li><strong>العقارات النشطة</strong> — العقارات المعروضة حالياً</li>
+          <li><strong>بانتظار المراجعة</strong> — عقارات تحتاج موافقة</li>
+          <li><strong>المستخدمون</strong> — الملاك، المكاتب، الباحثون</li>
+          <li><strong>المشرفون</strong> — أعضاء الفريق الإداري</li>
+        </ul>
+        <p class="guide-content" style="margin-top:10px">اضغط زر <strong>🔄 تحديث</strong> في أعلى الصفحة لتحديث البيانات يدوياً.</p>
+      `
+    },
+    {
+      icon: '🏠',
+      title: 'إدارة العقارات',
+      desc: 'مراجعة وإدارة جميع العقارات المسجلة',
+      content: `
+        <p class="guide-content">من قسم <strong>العقارات</strong> يمكنك:</p>
+        <ol class="guide-steps">
+          <li>عرض جميع العقارات مع حالتها (نشط، معلق، مرفوض)</li>
+          <li>الموافقة على العقارات الجديدة أو رفضها</li>
+          <li>حذف العقارات المخالفة</li>
+          <li>تمييز عقارات في قسم <strong>العقارات المميزة ⭐</strong></li>
+        </ol>
+        <p class="guide-content"><strong>ملاحظة:</strong> العقارات المميزة تظهر في أعلى نتائج البحث داخل تطبيق أقاري بلس.</p>
+      `
+    },
+    {
+      icon: '👤',
+      title: 'إدارة المستخدمين',
+      desc: 'الملاك، المكاتب العقارية، والباحثون',
+      content: `
+        <p class="guide-content">يشمل قسم المستخدمين ثلاثة أنواع:</p>
+        <ul class="guide-content">
+          <li><strong>الملاك 👤</strong> — أصحاب العقارات المسجلون</li>
+          <li><strong>المكاتب العقارية 🏢</strong> — شركات ومكاتب التوسط</li>
+          <li><strong>الباحثون 🔍</strong> — المستخدمون الباحثون عن عقارات</li>
+        </ul>
+        <p class="guide-content" style="margin-top:10px">يمكنك تعليق أي حساب أو تفعيله، ومراجعة طلبات التوثيق من قسم <strong>طلبات التوثيق ✅</strong>.</p>
+      `
+    },
+    {
+      icon: '👔',
+      title: 'إدارة الموظفين',
+      desc: 'فريق العمل وصلاحياتهم',
+      content: `
+        <p class="guide-content">من <strong>إدارة الموظفين</strong> يمكنك:</p>
+        <ol class="guide-steps">
+          <li>إضافة موظفين جدد بتحديد رقم الجوال والصلاحيات</li>
+          <li>تعديل صلاحيات الموظفين الحاليين</li>
+          <li>تعطيل أو إعادة تفعيل حساب موظف</li>
+          <li>مراجعة سجل أنشطة كل موظف</li>
+        </ol>
+        <p class="guide-content"><strong>الصلاحيات المتاحة:</strong> إدارة العقارات، إدارة المستخدمين، إدارة الطلبات، إدارة الاشتراكات، إدارة الإعدادات، إدارة المدن.</p>
+      `
+    },
+    {
+      icon: '👮',
+      title: 'إدارة المشرفين',
+      desc: 'المشرفون وصلاحياتهم',
+      content: `
+        <p class="guide-content">المشرفون هم أعضاء الفريق الإداري ذوو الصلاحيات المحدودة:</p>
+        <ul class="guide-content">
+          <li>يمكن تعيينهم للإشراف على مناطق أو أقسام محددة</li>
+          <li>صلاحياتهم قابلة للتخصيص من قِبل المدير الرئيسي</li>
+          <li>من قسم <strong>المشرفون والصلاحيات 👮</strong> يمكن إضافة مشرفين جدد وتعديل صلاحياتهم</li>
+        </ul>
+      `
+    },
+    {
+      icon: '🌟',
+      title: 'إدارة الاشتراكات',
+      desc: 'الباقات، الاشتراكات، والمدفوعات',
+      content: `
+        <p class="guide-content">يشمل هذا القسم ثلاثة أقسام فرعية:</p>
+        <ul class="guide-content">
+          <li><strong>الباقات 📦</strong> — إدارة باقات الاشتراك (السعر، المدة، الحد الأقصى للعقارات)</li>
+          <li><strong>الاشتراكات 🌟</strong> — جميع اشتراكات المستخدمين النشطة والمنتهية</li>
+          <li><strong>المدفوعات 💰</strong> — سجل المدفوعات وحالة كل معاملة مالية</li>
+          <li><strong>مراجعة المدفوعات 💳</strong> — مدفوعات تحتاج مراجعة يدوية</li>
+        </ul>
+      `
+    },
+    {
+      icon: '✅',
+      title: 'إدارة التوثيق',
+      desc: 'طلبات توثيق الهوية',
+      content: `
+        <p class="guide-content">من <strong>طلبات التوثيق ✅</strong>:</p>
+        <ol class="guide-steps">
+          <li>مراجعة طلبات توثيق هوية المستخدمين</li>
+          <li>الاطلاع على المستندات المرفقة</li>
+          <li>قبول الطلب (يصبح الحساب "موثقاً") أو رفضه مع ذكر السبب</li>
+        </ol>
+        <p class="guide-content">الحسابات الموثقة تحصل على شارة التوثيق في التطبيق وصلاحيات نشر إضافية.</p>
+      `
+    },
+    {
+      icon: '🔔',
+      title: 'إدارة الإشعارات',
+      desc: 'إرسال إشعارات للمستخدمين',
+      content: `
+        <p class="guide-content">من <strong>الإشعارات 🔔</strong> يمكنك:</p>
+        <ol class="guide-steps">
+          <li>إنشاء إشعار جديد بعنوان ونص ورابط اختياري</li>
+          <li>إرساله لجميع المستخدمين أو فئة محددة</li>
+          <li>عرض سجل الإشعارات السابقة</li>
+        </ol>
+        <p class="guide-content"><strong>أنواع الإشعارات:</strong> إشعارات عامة، إشعارات عروض، تنبيهات نظام.</p>
+      `
+    },
+    {
+      icon: '🚩',
+      title: 'إدارة البلاغات والشكاوى',
+      desc: 'البلاغات والشكاوى الواردة',
+      content: `
+        <p class="guide-content">يشمل هذا القسم:</p>
+        <ul class="guide-content">
+          <li><strong>البلاغات والشكاوى 🚩</strong> — البلاغات المقدمة ضد عقارات أو مستخدمين</li>
+          <li><strong>الرسائل والدعم 📩</strong> — رسائل الدعم الفني الواردة من المستخدمين</li>
+          <li><strong>التقييمات ⭐</strong> — تقييمات المستخدمين للمكاتب والعقارات</li>
+        </ul>
+        <p class="guide-content">يمكن إغلاق أي بلاغ أو تصنيفه وإرسال رد للمستخدم.</p>
+      `
+    },
+    {
+      icon: '❓',
+      title: 'الأسئلة الشائعة',
+      desc: 'أجوبة على أكثر الأسئلة تكراراً',
+      content: null,
+      faq: [
+        { q: 'كيف أقبل عقاراً جديداً؟', a: 'اذهب إلى قسم العقارات → اضغط زر "موافقة" بجانب العقار المطلوب. سيتم تفعيله فوراً ويظهر في التطبيق.' },
+        { q: 'كيف أضيف موظفاً جديداً؟', a: 'اذهب إلى إدارة الموظفين → اضغط "إضافة موظف" → أدخل رقم الجوال وحدد الصلاحيات المطلوبة.' },
+        { q: 'كيف أرسل إشعاراً لجميع المستخدمين؟', a: 'اذهب إلى الإشعارات → اضغط "إرسال إشعار جديد" → اكتب العنوان والمحتوى → اختر "جميع المستخدمين" → أرسل.' },
+        { q: 'هل يمكنني تغيير صلاحيات مشرف موجود؟', a: 'نعم، اذهب إلى المشرفون والصلاحيات → اضغط "تعديل" بجانب المشرف → عدّل الصلاحيات → احفظ.' },
+        { q: 'ما الفرق بين المشرف والموظف؟', a: 'المشرف (supervisor) لديه حساب مستقل في النظام وصلاحيات محدودة. الموظف (employee) يعمل تحت مكتب عقاري محدد.' },
+        { q: 'كيف أعمل نسخة احتياطية؟', a: 'اذهب إلى النسخ الاحتياطي → اضغط "إنشاء نسخة احتياطية". سيتم الإنشاء تلقائياً وستظهر في القائمة.' },
+        { q: 'هل يعمل التطبيق بدون إنترنت؟', a: 'لوحة الإدارة تعمل offline جزئياً — يمكن عرض الصفحات المحملة مسبقاً، لكن البيانات الحية تتطلب اتصالاً.' },
+        { q: 'كيف أثبت اللوحة على الهاتف؟', a: 'انتظر ظهور بانر "تثبيت لوحة الإدارة" في أسفل الشاشة ثم اضغط "تثبيت". على iPhone: اضغط أيقونة المشاركة ⎙ ثم "إضافة إلى الشاشة الرئيسية".' },
+      ]
+    },
+  ];
+
+  const renderSection = (s, i) => {
+    const contentHtml = s.content ? `<div class="guide-content">${s.content}</div>` : '';
+    const faqHtml = s.faq ? s.faq.map((f,j) => `
+      <div class="guide-faq-item">
+        <div class="guide-faq-q" onclick="toggleFaq(this)" role="button" tabindex="0">
+          <span>${f.q}</span>
+          <span class="faq-arrow">▼</span>
+        </div>
+        <div class="guide-faq-a">${f.a}</div>
+      </div>`).join('') : '';
+    return `
+      <div class="guide-section" id="guide-${i}">
+        <div class="guide-section-header">
+          <div class="guide-icon">${s.icon}</div>
+          <div>
+            <div class="guide-section-title">${s.title}</div>
+            <div class="guide-section-desc">${s.desc}</div>
+          </div>
+        </div>
+        ${contentHtml}
+        ${faqHtml}
+      </div>`;
+  };
+
+  main.innerHTML = pageHeader('دليل الاستخدام','الشرح الكامل لجميع أقسام لوحة الإدارة.') +
+    `<div class="card" style="margin-bottom:20px;padding:20px 22px">
+      <p style="font-size:14px;color:#52606D;line-height:1.7">
+        📖 هذا الدليل يشرح كيفية استخدام جميع أقسام <strong>Aqari Plus Admin</strong>.
+        اضغط على أي قسم لعرض التفاصيل. يمكنك التنقل بسرعة عبر القائمة الجانبية.
+      </p>
+    </div>` +
+    sections.map((s, i) => renderSection(s, i)).join('');
+}
+
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  const isOpen = answer.classList.contains('open');
+  // Close all open FAQs
+  document.querySelectorAll('.guide-faq-a.open').forEach(a => {
+    a.classList.remove('open');
+    a.previousElementSibling.classList.remove('open');
+  });
+  // Open clicked if it was closed
+  if (!isOpen) {
+    answer.classList.add('open');
+    el.classList.add('open');
+  }
+}
+
 /* ── Mobile Sidebar ────────────────────────────────── */
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('hidden');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('hamburger-btn');
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) {
+    sidebar.classList.remove('open');
+    overlay.classList.add('hidden');
+    btn?.setAttribute('aria-expanded', 'false');
+  } else {
+    sidebar.classList.add('open');
+    overlay.classList.remove('hidden');
+    btn?.setAttribute('aria-expanded', 'true');
+  }
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.add('hidden');
+  document.getElementById('hamburger-btn')?.setAttribute('aria-expanded', 'false');
+}
+
+/* ── Welcome Screen (First-Run) ───────────────────────── */
+function showWelcomeIfFirstRun() {
+  const seen = localStorage.getItem('aqari_admin_welcome_seen');
+  if (!seen) {
+    const modal = document.getElementById('welcome-modal');
+    if (modal) modal.classList.remove('hidden');
+    // Show iOS install hint if on iOS
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      const hint = document.getElementById('ios-install-hint');
+      if (hint) hint.style.display = 'block';
+    }
+    localStorage.setItem('aqari_admin_welcome_seen', '1');
+  }
+}
+
+function closeWelcome() {
+  const modal = document.getElementById('welcome-modal');
+  if (modal) {
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity .3s';
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      modal.style.opacity = '';
+      modal.style.transition = '';
+    }, 300);
+  }
 }
 
 /* ── Boot ────────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', () => {
+  // Show welcome screen on first visit
+  showWelcomeIfFirstRun();
+
+  // Auto-login if session exists
   if (Session.token && Session.role &&
       ['admin','super_admin','supervisor'].includes(Session.role)) {
     initAdminPanel();
   }
+
+  // Handle hash-based routing from PWA shortcuts
+  const hash = window.location.hash.replace('#','');
+  if (hash && Session.token && ['admin','super_admin','supervisor'].includes(Session.role||'')) {
+    setTimeout(() => navigateTo(hash), 150);
+  }
+
+  // Keyboard: close sidebar with Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSidebar();
+  });
+
+  // Swipe gesture to open/close sidebar (RTL: swipe right = close, swipe left = open)
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    if (dx > 60 && sidebar.classList.contains('open')) {
+      closeSidebar();
+    } else if (dx < -60 && !sidebar.classList.contains('open')) {
+      toggleSidebar();
+    }
+  }, { passive: true });
 });
