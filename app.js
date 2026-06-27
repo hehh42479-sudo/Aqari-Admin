@@ -453,7 +453,7 @@ function openImageModal(urls) {
     <div style="text-align:center">
       <img src="${validUrls[idx]}" alt="صورة ${idx+1}"
         style="max-width:100%;max-height:65vh;border-radius:12px;object-fit:contain;background:#111"
-        onerror="this.src='https://via.placeholder.com/400x300?text=لا+توجد+صورة'">
+        onerror="this.onerror=null;this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'text-align:center;padding:40px;color:#888;font-size:48px\'>🏠</div>')">
       <p style="margin-top:8px;color:#888;font-size:13px">${idx+1} / ${validUrls.length}</p>
     </div>`;
   const update = () => {
@@ -481,7 +481,7 @@ function imgNav(dir) {
     <div style="text-align:center">
       <img src="${urls[idx]}" alt="صورة ${idx+1}"
         style="max-width:100%;max-height:65vh;border-radius:12px;object-fit:contain;background:#111"
-        onerror="this.src='https://via.placeholder.com/400x300?text=لا+توجد+صورة'">
+        onerror="this.onerror=null;this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'text-align:center;padding:40px;color:#888;font-size:48px\'>🏠</div>')">
       <p style="margin-top:8px;color:#888;font-size:13px">${idx+1} / ${urls.length}</p>
     </div>`;
   document.getElementById('img-prev').disabled = idx === 0;
@@ -601,13 +601,29 @@ function _propSearchDebounce(val) {
 
 function _buildPropActions(perm) {
   return `<button class="btn-white" onclick="clearCache('prop');_allProperties=[];renderProperties()">🔄 تحديث</button>
-    <select onchange="renderProperties()" id="prop-status-filter" style="padding:8px 12px;border:1.5px solid var(--beige-mid);border-radius:10px;font-family:inherit;font-size:13px">
+    <select onchange="_filterPropsByStatus(this.value)" id="prop-status-filter" style="padding:8px 12px;border:1.5px solid var(--beige-mid);border-radius:10px;font-family:inherit;font-size:13px">
       <option value="">كل الحالات</option>
       <option value="pending">معلق</option>
       <option value="approved">مقبول</option>
       <option value="rejected">مرفوض</option>
       <option value="featured">مميز</option>
     </select>`;
+}
+function _filterPropsByStatus(statusVal) {
+  const main = document.getElementById('main-content');
+  const perm = Session.hasPerm('manage_properties');
+  if (!_allProperties.length) { renderProperties(); return; }
+  const rows = statusVal
+    ? _allProperties.filter(p => (p.status||'') === statusVal || (statusVal==='featured'&&(p.is_featured||p.featured)))
+    : _allProperties;
+  const cards = rows.map(p => _buildPropCard(p, perm)).join('');
+  const gridEl = document.querySelector('.prop-cards-grid');
+  if (gridEl) {
+    gridEl.innerHTML = cards;
+    observeLazyImages();
+  } else {
+    renderProperties(statusVal);
+  }
 }
 
 function _buildPropCard(p, perm) {
@@ -1127,13 +1143,19 @@ async function approveUser(id, type) {
   } catch(e) { toast(e.message,'error'); }
 }
 async function rejectUser(id, type) {
-  const reason = prompt('سبب الرفض (اختياري):');
-  if (reason === null) return;
-  try {
-    await PATCH(`/admin/users/${id}/status`, { status:'rejected', reason });
-    toast('تم رفض الحساب','success');
-    renderUsersTable(type);
-  } catch(e) { toast(e.message,'error'); }
+  openModal('رفض الحساب', `
+    <div class="form-group"><label>سبب الرفض</label>
+    <textarea id="rej-user-reason" rows="3" placeholder="اكتب سبب الرفض (اختياري)" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const reason = document.getElementById('rej-user-reason').value.trim();
+      try {
+        await PATCH(`/admin/users/${id}/status`, { status:'rejected', reason });
+        toast('تم رفض الحساب','success');
+        closeModal(); renderUsersTable(type);
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 async function deleteUser(id, type) {
   if (!confirm('هل تريد حذف هذا الحساب نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) return;
@@ -1701,17 +1723,23 @@ async function approveSubscription(id) {
   }
 }
 async function rejectSubscription(id) {
-  const reason = prompt('سبب الرفض:');
-  if (reason === null) return;
-  try {
-    await PATCH(`/admin/subscriptions/${id}/status`, { status:'rejected', reason });
-    toast('تم رفض الاشتراك','success'); renderSubscriptions();
-  } catch(e) {
-    try {
-      await POST(`/admin/subscriptions/${id}/reject`, { reason });
-      toast('تم رفض الاشتراك','success'); renderSubscriptions();
-    } catch(e2) { toast(e2.message,'error'); }
-  }
+  openModal('رفض الاشتراك', `
+    <div class="form-group"><label>سبب الرفض</label>
+    <textarea id="rej-sub-reason" rows="3" placeholder="اكتب سبب الرفض" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const reason = document.getElementById('rej-sub-reason').value.trim();
+      try {
+        await PATCH(`/admin/subscriptions/${id}/status`, { status:'rejected', reason });
+        toast('تم رفض الاشتراك','success'); closeModal(); renderSubscriptions();
+      } catch(e) {
+        try {
+          await POST(`/admin/subscriptions/${id}/reject`, { reason });
+          toast('تم رفض الاشتراك','success'); closeModal(); renderSubscriptions();
+        } catch(e2) { toast(e2.message,'error'); }
+      }
+    }
+  );
 }
 async function activateSubscription(id) {
   if (!confirm('تفعيل هذا الاشتراك؟')) return;
@@ -1791,21 +1819,26 @@ async function renderPaymentReviews() {
   }
 }
 async function approvePayment(id) {
-  const note = prompt('ملاحظة للموافقة (اختياري):') ?? '';
+  if (!confirm('تأكيد الموافقة على هذه الدفعة؟')) return;
   try {
-    await POST(`/admin/payment-reviews/${id}/approve`, { admin_note:note });
+    await POST(`/admin/payment-reviews/${id}/approve`, {});
     toast('تمت الموافقة على الدفع ✅','success');
     renderPaymentReviews();
   } catch(e) { toast(e.message,'error'); }
 }
 async function rejectPayment(id) {
-  const note = prompt('سبب الرفض:');
-  if (note === null) return;
-  try {
-    await POST(`/admin/payment-reviews/${id}/reject`, { admin_note:note });
-    toast('تم رفض الدفع','success');
-    renderPaymentReviews();
-  } catch(e) { toast(e.message,'error'); }
+  openModal('رفض الدفعة', `
+    <div class="form-group"><label>سبب الرفض</label>
+    <textarea id="rej-pay-note" rows="3" placeholder="اكتب سبب الرفض" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const note = document.getElementById('rej-pay-note').value.trim();
+      try {
+        await POST(`/admin/payment-reviews/${id}/reject`, { admin_note:note });
+        toast('تم رفض الدفع','success'); closeModal(); renderPaymentReviews();
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1854,48 +1887,56 @@ async function renderVerifications() {
   }
 }
 async function approveVerif(id) {
-  const note = prompt('ملاحظة الموافقة (اختياري):') ?? '';
+  if (!confirm('تأكيد الموافقة على طلب التوثيق؟')) return;
   try {
-    await PATCH(`/admin/verification/${id}`, { status:'approved', admin_note:note });
+    await PATCH(`/admin/verification/${id}`, { status:'approved' });
     toast('تمت الموافقة على التوثيق ✅','success');
     renderVerifications();
   } catch(e) {
     try {
-      await PUT(`/admin/verification/${id}`, { status:'approved', admin_note:note });
+      await PUT(`/admin/verification/${id}`, { status:'approved' });
       toast('تمت الموافقة على التوثيق ✅','success');
       renderVerifications();
     } catch(e2) { toast(e2.message,'error'); }
   }
 }
 async function rejectVerif(id) {
-  const note = prompt('سبب الرفض:');
-  if (note === null) return;
-  try {
-    await PATCH(`/admin/verification/${id}`, { status:'rejected', admin_note:note });
-    toast('تم رفض طلب التوثيق','success');
-    renderVerifications();
-  } catch(e) {
-    try {
-      await PUT(`/admin/verification/${id}`, { status:'rejected', admin_note:note });
-      toast('تم رفض طلب التوثيق','success');
-      renderVerifications();
-    } catch(e2) { toast(e2.message,'error'); }
-  }
+  openModal('رفض طلب التوثيق', `
+    <div class="form-group"><label>سبب الرفض</label>
+    <textarea id="rej-verif-note" rows="3" placeholder="اكتب سبب الرفض" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const note = document.getElementById('rej-verif-note').value.trim();
+      try {
+        await PATCH(`/admin/verification/${id}`, { status:'rejected', admin_note:note });
+        toast('تم رفض طلب التوثيق','success'); closeModal(); renderVerifications();
+      } catch(e) {
+        try {
+          await PUT(`/admin/verification/${id}`, { status:'rejected', admin_note:note });
+          toast('تم رفض طلب التوثيق','success'); closeModal(); renderVerifications();
+        } catch(e2) { toast(e2.message,'error'); }
+      }
+    }
+  );
 }
 async function requestReupload(id) {
-  const note = prompt('رسالة للمستخدم (سبب طلب إعادة الرفع):');
-  if (note === null) return;
-  try {
-    await PATCH(`/admin/verification/${id}`, { status:'reupload_required', admin_note:note });
-    toast('تم طلب إعادة رفع المستندات','success');
-    renderVerifications();
-  } catch(e) {
-    try {
-      await POST(`/admin/verification/${id}/request-reupload`, { message:note });
-      toast('تم طلب إعادة رفع المستندات','success');
-      renderVerifications();
-    } catch(e2) { toast(e2.message,'error'); }
-  }
+  openModal('طلب إعادة رفع المستندات', `
+    <div class="form-group"><label>رسالة للمستخدم</label>
+    <textarea id="reup-note" rows="3" placeholder="اكتب سبب طلب إعادة الرفع" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const note = document.getElementById('reup-note').value.trim();
+      try {
+        await PATCH(`/admin/verification/${id}`, { status:'reupload_required', admin_note:note });
+        toast('تم طلب إعادة رفع المستندات','success'); closeModal(); renderVerifications();
+      } catch(e) {
+        try {
+          await POST(`/admin/verification/${id}/request-reupload`, { message:note });
+          toast('تم طلب إعادة رفع المستندات','success'); closeModal(); renderVerifications();
+        } catch(e2) { toast(e2.message,'error'); }
+      }
+    }
+  );
 }
 
 /* ══════════════════════════════════════════════════════
@@ -2831,11 +2872,18 @@ async function renderComplaints() {
   }
 }
 async function resolveComplaint(id) {
-  const note = prompt('ملاحظة الحل (اختياري):') ?? '';
-  try {
-    await PATCH(`/admin/complaints/${id}`, { status:'resolved', admin_note:note });
-    toast('تم حل الشكوى ✅','success'); renderComplaints();
-  } catch(e) { toast(e.message,'error'); }
+  openModal('حل الشكوى', `
+    <div class="form-group"><label>ملاحظة الحل (اختياري)</label>
+    <textarea id="resolve-note" rows="3" placeholder="اكتب ملاحظة الحل" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const note = document.getElementById('resolve-note').value.trim();
+      try {
+        await PATCH(`/admin/complaints/${id}`, { status:'resolved', admin_note:note });
+        toast('تم حل الشكوى ✅','success'); closeModal(); renderComplaints();
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 
 /* ══════════════════════════════════════════════════════
