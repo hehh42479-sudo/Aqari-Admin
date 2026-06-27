@@ -276,6 +276,68 @@ async function sendOtp() {
   setLoginLoading('send-otp', false);
 }
 
+/* ── Helper: extract canonical role from any response shape ── */
+function _extractRole(res) {
+  const userData = res.user || res.userData || res.data || {};
+  const rawRole = (
+    userData.role       || userData.userRole    || userData.user_role   ||
+    userData.type       || userData.user_type   || userData.account_type ||
+    res.role            || res.userRole         || ''
+  );
+  const r = String(rawRole).toLowerCase().trim();
+  const MAP = {
+    'supervisor':'supervisor', 'admin':'admin',
+    'super_admin':'super_admin', 'superadmin':'super_admin', 'super-admin':'super_admin',
+  };
+  return { canonical: MAP[r] || r, raw: rawRole, userData };
+}
+
+/* ── Helper: check supervisors list for this phone (backend-role fallback) ── */
+async function _checkIsSupervisorByPhone(token, phone) {
+  /* Try /admin/me first — returns full user profile with actual role */
+  const meEndpoints = ['/admin/me', '/admin/profile', '/admin/whoami'];
+  for (const ep of meEndpoints) {
+    try {
+      const r = await fetch(API + ep, {
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+      });
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        const { canonical } = _extractRole(d);
+        console.info('[login] /admin/me returned role:', canonical, JSON.stringify(d).substring(0, 120));
+        if (['admin','super_admin','supervisor'].includes(canonical)) return { role: canonical, perms: _extractPerms(d) };
+      }
+    } catch (_) {}
+  }
+  /* Fallback: check supervisors list — look for this phone */
+  try {
+    const r = await fetch(API + '/admin/supervisors', {
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+    });
+    if (r.ok) {
+      const d = await r.json().catch(() => ({}));
+      const list = d.supervisors || d.data || d || [];
+      const arr = Array.isArray(list) ? list : [];
+      const norm = (p) => String(p||'').replace(/\D/g,'').replace(/^0+/,'');
+      const phoneNorm = norm(phone);
+      const match = arr.find(s => norm(s.phone) === phoneNorm || norm(s.phone_number) === phoneNorm);
+      if (match) {
+        console.info('[login] phone found in supervisors list:', JSON.stringify(match).substring(0, 120));
+        const perms = match.permissions || match.perms || [];
+        return { role: 'supervisor', perms: Array.isArray(perms) ? perms : [] };
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function _extractPerms(res) {
+  const ud = res.user || res.userData || res.data || res || {};
+  const raw = ud.permissions || ud.perms || ud.rolePermissions ||
+              res.permissions || res.perms || [];
+  return Array.isArray(raw) ? raw : [];
+}
+
 async function login() {
   if (!otpSent) { showLoginError('أرسل رمز التحقق أولاً'); return; }
   const phone = document.getElementById('phone-input').value.trim();
@@ -284,60 +346,45 @@ async function login() {
   setLoginLoading('login', true);
   clearLoginMessages();
   try {
+    /* ── Step 1: verify OTP ── */
     const res = await POST('/auth/verify-otp', { phone, otp });
 
-    /* ── extract role from all known response shapes ── */
-    const userData = res.user || res.userData || res.data || {};
-    /* Check all possible field names backend might use for the role.
-       Flutter admin_session_controller checks: ['role', 'userRole', 'type']
-       Backend may also use: user_type, account_type, user_role */
-    const rawRole = (
-      userData.role ||
-      userData.userRole ||
-      userData.user_role ||
-      userData.type ||
-      userData.user_type ||
-      userData.account_type ||
-      res.role ||
-      res.userRole ||
-      ''
-    );
-    const role = String(rawRole).toLowerCase().trim();
-
-    /* Map variant spellings → canonical role */
-    const ROLE_MAP = {
-      'supervisor': 'supervisor',
-      'admin':      'admin',
-      'super_admin':'super_admin',
-      'superadmin': 'super_admin',
-      'super-admin':'super_admin',
-    };
-    const canonicalRole = ROLE_MAP[role] || role;
-
-    if (!['admin','super_admin','supervisor'].includes(canonicalRole)) {
-      /* Debug: log full response so we can diagnose what the backend actually returns */
-      console.warn('[login] role check failed. rawRole:', rawRole,
-        '| userData keys:', Object.keys(userData),
-        '| res keys:', Object.keys(res));
-      throw new Error('هذا الحساب لا يمتلك صلاحية الدخول كمدير. تأكد من أن رقم الهاتف صحيح وأن الحساب مشرف أو مدير.');
-    }
-    /* Use canonical role for the session */
-    const role_ = canonicalRole;
-
-    const token = res.token || res.access_token || res.accessToken || userData.token || '';
+    const token = res.token || res.access_token || res.accessToken ||
+                  (res.user||{}).token || (res.data||{}).token || '';
     if (!token) throw new Error('لم يصل رمز الجلسة من الخادم. حاول مرة أخرى.');
 
-    /* ── extract permissions from all possible locations ── */
-    const rawPerms = (
-      userData.permissions ||
-      userData.perms ||
-      userData.rolePermissions ||
-      res.permissions ||
-      res.perms ||
-      []
-    );
-    const perms = Array.isArray(rawPerms) ? rawPerms : [];
+    /* ── Step 2: extract role from verify-otp response ── */
+    let { canonical: role_, raw: rawRole, userData } = _extractRole(res);
+    let perms = _extractPerms(res);
 
+    console.info('[login] verify-otp response — role:', rawRole,
+      '| userData keys:', Object.keys(userData),
+      '| res keys:', Object.keys(res));
+
+    /* ── Step 3: if role not valid, probe /admin/me and /admin/supervisors ──
+       Root cause: backend /auth/verify-otp may return role='user' even for
+       supervisors (backend bug — supervisor stored separately, not in users.role).
+       We correct this by checking the supervisors list with the fresh token. */
+    if (!['admin','super_admin','supervisor'].includes(role_)) {
+      showLoginStatus('جاري التحقق من الصلاحيات...');
+      const found = await _checkIsSupervisorByPhone(token, phone);
+      if (found) {
+        role_ = found.role;
+        if (found.perms.length > 0) perms = found.perms;
+        console.info('[login] role resolved via supervisors-list fallback:', role_);
+      } else {
+        /* Still not found — genuine rejection */
+        console.warn('[login] BACKEND BUG confirmed: verify-otp returned role=%o, phone not in supervisors list', rawRole);
+        throw new Error(
+          'هذا الحساب لا يمتلك صلاحية الدخول.\n' +
+          'تأكد من:\n' +
+          '١. أن رقم الهاتف مسجل كمشرف في النظام.\n' +
+          '٢. أن المدير أضافك كمشرف وحدد الصلاحيات.'
+        );
+      }
+    }
+
+    /* ── Step 4: start session ── */
     Session.set(token, { ...userData, role: role_, permissions: perms });
     initAdminPanel();
   } catch(e) {
