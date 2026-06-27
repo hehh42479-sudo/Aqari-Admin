@@ -58,6 +58,8 @@ const DEL  = (path)       => api('DELETE', path);
 
 /* ── API with fallback endpoints ─────────────────────── */
 async function apiWithFallback(endpoints) {
+  let lastStatus = 0;
+  let lastMsg = '';
   for (const ep of endpoints) {
     try {
       const res = await fetch(API + ep, {
@@ -70,9 +72,23 @@ async function apiWithFallback(endpoints) {
         const data = await res.json().catch(() => ({}));
         return data;
       }
-    } catch (e) { /* try next */ }
+      lastStatus = res.status;
+      const errData = await res.json().catch(() => ({}));
+      lastMsg = errData.message || errData.error || `HTTP ${res.status}`;
+      /* 401/403 — endpoint EXISTS but token issue; stop trying further endpoints */
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`401: ${lastMsg}`);
+      }
+      /* 404 — endpoint doesn't exist; try next */
+      /* other errors — try next */
+    } catch (e) {
+      if (e.message && (e.message.startsWith('401:') || e.message.startsWith('403:'))) {
+        throw new Error(e.message);
+      }
+      /* network error or 404 — try next */
+    }
   }
-  throw new Error('تعذر الوصول إلى البيانات. تحقق من الاتصال بالشبكة.');
+  throw new Error(lastMsg || 'تعذر الوصول إلى البيانات. تحقق من الاتصال بالشبكة.');
 }
 
 /* ── In-memory cache to prevent duplicate API calls ──── */
@@ -383,7 +399,19 @@ function _doNavigate(route) {
     'app-updates':          renderAppUpdates,
     'user-guide':           renderUserGuide,
   };
+  /* Permission check: supervisors can only see pages in their nav */
   if (pages[route]) {
+    /* Find the nav item for this route and check its perm */
+    const navItem = ALL_NAV.find(n => n.route === route);
+    if (navItem && navItem.perm && !Session.hasPerm(navItem.perm)) {
+      main.innerHTML = pageHeader('غير مصرح', '') +
+        `<div class="card"><div class="empty-state">
+          <div class="empty-icon">🔐</div>
+          <h3>ليس لديك صلاحية للوصول إلى هذه الصفحة</h3>
+          <p style="color:#888">تواصل مع مدير النظام لطلب الصلاحية اللازمة.</p>
+        </div></div>`;
+      return;
+    }
     main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري التحميل...</p></div>`;
     Promise.resolve(pages[route]()).then(() => observeLazyImages());
   } else {
@@ -1290,6 +1318,9 @@ const PERM_LABELS = {
 };
 const ALL_PERMS = Object.keys(PERM_LABELS);
 
+/* Global store for supervisor perms — avoids JSON-in-HTML-attribute quoting bugs */
+const _supStore = {};
+
 async function renderSupervisors() {
   const main = document.getElementById('main-content');
   try {
@@ -1299,6 +1330,12 @@ async function renderSupervisors() {
     const tbody = rows.length
       ? rows.map(r=>{
           const perms = Array.isArray(r.permissions)?r.permissions:[];
+          /* Store perms by ID to avoid quoting issues in onclick attributes */
+          _supStore[r.id] = {
+            perms,
+            name: r.name||r.full_name||'',
+            phone: r.phone||''
+          };
           return `<tr>
             <td data-label="الاسم"><strong>${r.name||r.full_name||'—'}</strong></td>
             <td data-label="الهاتف">${r.phone||'—'}</td>
@@ -1313,7 +1350,7 @@ async function renderSupervisors() {
             </td>
             <td data-label="تاريخ الإنشاء">${fmtDate(r.created_at)}</td>
             <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
-              <button class="btn-action btn-view btn-sm" onclick="editSupervisor(${r.id},'${(r.name||r.full_name||'').replace(/'/g,'')}','${r.phone||''}',${JSON.stringify(perms)})">تعديل الصلاحيات</button>
+              <button class="btn-action btn-view btn-sm" onclick="editSupervisorById(${r.id})">تعديل الصلاحيات</button>
               <button class="btn-action btn-delete btn-sm" onclick="deleteSupervisor(${r.id})">حذف</button>
             </div></td>
           </tr>`;
@@ -1536,6 +1573,12 @@ function showAddSupervisorModal() {
   );
 }
 
+/* Wrapper that reads from _supStore — avoids JSON-in-HTML-attribute quoting bugs */
+function editSupervisorById(id) {
+  const s = _supStore[id] || { perms: [], name: '', phone: '' };
+  editSupervisor(id, s.name, s.phone, s.perms);
+}
+
 function editSupervisor(id, name, phone, currentPerms) {
   const safePerms = Array.isArray(currentPerms) ? currentPerms : [];
   openWideModal(`تعديل المشرف: ${name}`, `
@@ -1600,9 +1643,8 @@ async function renderPackages() {
   try {
     const data = await apiWithFallback([
       '/admin/packages',
-      '/packages',
       '/admin/subscription-packages',
-      '/subscription-plans',
+      '/admin/pricing',
     ]);
     const list = data.packages || data.plans || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(p => `<tr>
