@@ -1573,24 +1573,29 @@ td.actions-cell {
   background: var(--gold-bg) !important;
 }
 
-/* The actual checkbox — hidden but functional */
+/* The actual checkbox — visually hidden but fully interactive */
 .perm-native-cb {
   position: absolute;
   opacity: 0;
-  width: 1px; height: 1px;
-  pointer-events: none;
+  width: 100%; height: 100%;
+  top: 0; left: 0;
+  margin: 0; padding: 0;
+  cursor: pointer;
+  z-index: 1;
   /* keep in DOM so .perm-native-cb:checked selector works */
 }
 
 /* Icon */
 .perm-row-icon {
   font-size: 16px; flex-shrink: 0; width: 22px; text-align: center;
+  pointer-events: none; position: relative; z-index: 0;
 }
 
 /* Label text */
 .perm-row-label {
   flex: 1; font-size: 13px; font-weight: 600;
   color: var(--text-mid); line-height: 1.3;
+  pointer-events: none; position: relative; z-index: 0;
 }
 
 /* Visual tick on the right */
@@ -1602,6 +1607,7 @@ td.actions-cell {
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: var(--brown-dark);
   transition: all .15s;
+  pointer-events: none; position: relative; z-index: 0;
 }
 .perm-row-checked .perm-row-tick {
   background: var(--gold);
