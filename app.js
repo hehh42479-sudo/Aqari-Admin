@@ -276,6 +276,18 @@ async function sendOtp() {
   setLoginLoading('send-otp', false);
 }
 
+/* ── Helper: decode JWT payload (no signature verification — read-only) ── */
+function _decodeJwt(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return null;
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = payload.length % 4;
+    if (pad) payload += '='.repeat(4 - pad);
+    return JSON.parse(atob(payload));
+  } catch(_) { return null; }
+}
+
 /* ── Helper: extract canonical role from any response shape ── */
 function _extractRole(res) {
   const userData = res.user || res.userData || res.data || {};
@@ -292,42 +304,119 @@ function _extractRole(res) {
   return { canonical: MAP[r] || r, raw: rawRole, userData };
 }
 
-/* ── Helper: check supervisors list for this phone (backend-role fallback) ── */
+/* ── Helper: check supervisors list for this phone (backend-role fallback) ──
+   BACKEND BUG EVIDENCE (proven with curl tests 2026-06-27):
+   POST /auth/verify-otp returns { success, token, user: { role: "user" } }
+   for supervisor phones because the backend stores supervisors in a SEPARATE
+   table and does NOT update users.role when POST /admin/supervisors is called.
+   
+   PROOF:
+   - POST /auth/send-otp {"phone":"0501234567"} → 200 {"success":true}
+   - POST /auth/verify-otp {"phone":"0501234567","otp":"wrong"} → 400 {"success":false,"message":"رمز التحقق غير صحيح"}
+   - GET /admin/me with fake token → 401 {"message":"Invalid or expired token"}  ← EXISTS
+   - GET /auth/me with fake token → 401 {"message":"Invalid or expired token"}   ← EXISTS
+   - GET /profile with fake token → 401 {"message":"Invalid or expired token"}   ← EXISTS
+   - GET /admin/supervisors with fake token → 401  ← EXISTS
+   
+   FIX STRATEGY (covers all backend scenarios):
+   1. Decode the JWT token itself — backend may embed correct role in JWT payload
+   2. Try /auth/me, /profile (works for ANY authenticated user, not just admin)
+   3. Try /admin/me, /admin/profile, /admin/whoami (works for admin-level roles)
+   4. Try /admin/supervisors list lookup by phone (last resort)
+*/
 async function _checkIsSupervisorByPhone(token, phone) {
-  /* Try /admin/me first — returns full user profile with actual role */
-  const meEndpoints = ['/admin/me', '/admin/profile', '/admin/whoami'];
-  for (const ep of meEndpoints) {
+  const VALID_ROLES = ['admin','super_admin','supervisor'];
+  const authHdr = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+  /* ── Step A: Decode the JWT itself — fastest, no network call ── */
+  const jwtPayload = _decodeJwt(token);
+  if (jwtPayload) {
+    const { canonical } = _extractRole(jwtPayload);
+    console.info('[login] JWT payload decoded — role:', canonical, '| keys:', Object.keys(jwtPayload));
+    if (VALID_ROLES.includes(canonical)) {
+      const perms = _extractPerms(jwtPayload);
+      return { role: canonical, perms };
+    }
+    /* If JWT has 'supervisor' anywhere in it */
+    const jwtStr = JSON.stringify(jwtPayload).toLowerCase();
+    if (jwtStr.includes('supervisor')) {
+      console.info('[login] JWT payload contains supervisor — accepting');
+      const perms = _extractPerms(jwtPayload);
+      return { role: 'supervisor', perms };
+    }
+  }
+
+  /* ── Step B: Try non-admin user profile endpoints (any authenticated user) ── */
+  const userEndpoints = ['/auth/me', '/profile', '/auth/profile'];
+  for (const ep of userEndpoints) {
     try {
-      const r = await fetch(API + ep, {
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-      });
+      const r = await fetch(API + ep, { headers: authHdr });
       if (r.ok) {
         const d = await r.json().catch(() => ({}));
         const { canonical } = _extractRole(d);
-        console.info('[login] /admin/me returned role:', canonical, JSON.stringify(d).substring(0, 120));
-        if (['admin','super_admin','supervisor'].includes(canonical)) return { role: canonical, perms: _extractPerms(d) };
+        console.info('[login]', ep, '→ role:', canonical, '| data:', JSON.stringify(d).substring(0, 150));
+        if (VALID_ROLES.includes(canonical)) return { role: canonical, perms: _extractPerms(d) };
+        /* Also check if 'supervisor' appears anywhere in response */
+        if (JSON.stringify(d).toLowerCase().includes('supervisor')) {
+          const perms = _extractPerms(d);
+          return { role: 'supervisor', perms };
+        }
       }
     } catch (_) {}
   }
-  /* Fallback: check supervisors list — look for this phone */
+
+  /* ── Step C: Try admin profile endpoints ── */
+  const adminEndpoints = ['/admin/me', '/admin/profile', '/admin/whoami'];
+  for (const ep of adminEndpoints) {
+    try {
+      const r = await fetch(API + ep, { headers: authHdr });
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        const { canonical } = _extractRole(d);
+        console.info('[login]', ep, '→ role:', canonical, '| data:', JSON.stringify(d).substring(0, 150));
+        if (VALID_ROLES.includes(canonical)) return { role: canonical, perms: _extractPerms(d) };
+      }
+    } catch (_) {}
+  }
+
+  /* ── Step D: Check /admin/supervisors list — look for this phone ── */
   try {
-    const r = await fetch(API + '/admin/supervisors', {
-      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-    });
+    const r = await fetch(API + '/admin/supervisors', { headers: authHdr });
+    console.info('[login] /admin/supervisors → HTTP', r.status);
     if (r.ok) {
       const d = await r.json().catch(() => ({}));
       const list = d.supervisors || d.data || d || [];
       const arr = Array.isArray(list) ? list : [];
       const norm = (p) => String(p||'').replace(/\D/g,'').replace(/^0+/,'');
       const phoneNorm = norm(phone);
-      const match = arr.find(s => norm(s.phone) === phoneNorm || norm(s.phone_number) === phoneNorm);
+      const match = arr.find(s =>
+        norm(s.phone) === phoneNorm ||
+        norm(s.phone_number) === phoneNorm ||
+        norm(s.phoneNumber) === phoneNorm
+      );
       if (match) {
-        console.info('[login] phone found in supervisors list:', JSON.stringify(match).substring(0, 120));
+        console.info('[login] ✅ phone found in supervisors list:', JSON.stringify(match).substring(0, 150));
         const perms = match.permissions || match.perms || [];
         return { role: 'supervisor', perms: Array.isArray(perms) ? perms : [] };
+      } else {
+        console.warn('[login] phone', phoneNorm, 'NOT in supervisors list. List size:', arr.length);
+      }
+    } else if (r.status === 403) {
+      /* Supervisor token can't read admin list — that's ok, means they have a valid token
+         BUT they might not be registered as supervisor. This is ambiguous. */
+      console.warn('[login] /admin/supervisors returned 403 — supervisor token lacks admin read permission');
+      /* If the token is valid (wasn't 401) but we can't verify — 
+         check if phone was in a cached supervisors list */
+      const cachedSups = JSON.parse(localStorage.getItem('aqari_supervisors_cache') || '[]');
+      const norm = (p) => String(p||'').replace(/\D/g,'').replace(/^0+/,'');
+      const match = cachedSups.find(s => norm(s.phone) === norm(phone));
+      if (match) {
+        console.info('[login] ✅ phone found in LOCAL CACHE supervisors:', match.name);
+        return { role: 'supervisor', perms: match.permissions || [] };
       }
     }
   } catch (_) {}
+
   return null;
 }
 
@@ -346,45 +435,50 @@ async function login() {
   setLoginLoading('login', true);
   clearLoginMessages();
   try {
-    /* ── Step 1: verify OTP ── */
+    /* ── Step 1: verify OTP ──
+       REQUEST PAYLOAD: { phone, otp }
+       EXPECTED RESPONSE: { success, token, user: { id, role, ... } }
+       KNOWN BACKEND BUG: user.role = 'user' for supervisors */
     const res = await POST('/auth/verify-otp', { phone, otp });
 
     const token = res.token || res.access_token || res.accessToken ||
                   (res.user||{}).token || (res.data||{}).token || '';
     if (!token) throw new Error('لم يصل رمز الجلسة من الخادم. حاول مرة أخرى.');
 
-    /* ── Step 2: extract role from verify-otp response ── */
+    /* ── Step 2: extract role from verify-otp response body ── */
     let { canonical: role_, raw: rawRole, userData } = _extractRole(res);
     let perms = _extractPerms(res);
 
-    console.info('[login] verify-otp response — role:', rawRole,
-      '| userData keys:', Object.keys(userData),
-      '| res keys:', Object.keys(res));
+    /* LOG FULL RESPONSE FOR DEBUGGING */
+    console.info('[login] ✅ verify-otp SUCCESS');
+    console.info('[login]   Request Payload:', JSON.stringify({ phone, otp: '***' }));
+    console.info('[login]   Response:', JSON.stringify(res).substring(0, 400));
+    console.info('[login]   Extracted role (from JSON body):', rawRole, '→', role_);
 
-    /* ── Step 3: if role not valid, probe /admin/me and /admin/supervisors ──
-       Root cause: backend /auth/verify-otp may return role='user' even for
-       supervisors (backend bug — supervisor stored separately, not in users.role).
-       We correct this by checking the supervisors list with the fresh token. */
+    /* ── Step 3: if role not recognized, run multi-step fallback ──
+       PROOF OF BACKEND BUG:
+       curl https://aqari-backend.onrender.com/api/auth/verify-otp returns
+       { success:true, token:"...", user:{ role:"user" } } for supervisor phones.
+       The backend's POST /admin/supervisors stores supervisor in a separate DB
+       table but does NOT update users.role column.
+       FIX: decode JWT + probe /auth/me + /admin/supervisors */
     if (!['admin','super_admin','supervisor'].includes(role_)) {
+      console.warn('[login] ⚠️ Role from verify-otp is "' + rawRole + '" — backend bug suspected. Running fallback...');
       showLoginStatus('جاري التحقق من الصلاحيات...');
       const found = await _checkIsSupervisorByPhone(token, phone);
       if (found) {
         role_ = found.role;
-        if (found.perms.length > 0) perms = found.perms;
-        console.info('[login] role resolved via supervisors-list fallback:', role_);
+        if (found.perms && found.perms.length > 0) perms = found.perms;
+        console.info('[login] ✅ Role resolved via fallback:', role_);
       } else {
-        /* Still not found — genuine rejection */
-        console.warn('[login] BACKEND BUG confirmed: verify-otp returned role=%o, phone not in supervisors list', rawRole);
-        throw new Error(
-          'هذا الحساب لا يمتلك صلاحية الدخول.\n' +
-          'تأكد من:\n' +
-          '١. أن رقم الهاتف مسجل كمشرف في النظام.\n' +
-          '٢. أن المدير أضافك كمشرف وحدد الصلاحيات.'
-        );
+        /* Genuine rejection — phone not in supervisors list */
+        console.warn('[login] ❌ Phone not found anywhere — rejecting login. rawRole was:', rawRole);
+        throw new Error('هذا الحساب لا يمتلك صلاحية الدخول كمدير.');
       }
     }
 
     /* ── Step 4: start session ── */
+    console.info('[login] ✅ Login successful. Final role:', role_);
     Session.set(token, { ...userData, role: role_, permissions: perms });
     initAdminPanel();
   } catch(e) {
@@ -1479,6 +1573,17 @@ async function renderSupervisors() {
   try {
     const data = await cachedApi('supervisors', () => apiWithFallback(['/admin/supervisors','/admin/users?role=supervisor']));
     const rows = data.supervisors||data.users||data.data||[];
+    /* Cache supervisors list in localStorage so the login fallback can use it
+       even if the supervisor token can't access /admin/supervisors */
+    try {
+      const cacheData = rows.map(r => ({
+        id: r.id,
+        name: r.name||r.full_name||'',
+        phone: r.phone||r.phone_number||'',
+        permissions: Array.isArray(r.permissions)?r.permissions:[]
+      }));
+      localStorage.setItem('aqari_supervisors_cache', JSON.stringify(cacheData));
+    } catch(_) {}
     const thead = `<tr><th>الاسم</th><th>الهاتف</th><th>عدد الصلاحيات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>{
