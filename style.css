@@ -30,6 +30,8 @@
   --beige       : #FAF4EA;
   --beige-mid   : #F0E4D0;
   --beige-dark  : #E0CEAE;
+  --beige-light : #FAF6EF;
+  --gold-faint  : rgba(197,157,80,0.15);
   --text-dark   : #2C1A0A;
   --text-mid    : #5C3A1E;
   --text-light  : #8B7355;
@@ -2077,4 +2079,193 @@ img, video, canvas, svg {
   color: var(--brown-mid);
   border-radius: 8px;
   min-height: 60px;
+}
+
+/* ═══════════════════════════════════════════════════
+   Mobile Extra Fixes — Session G
+═══════════════════════════════════════════════════ */
+
+/* منع overflow على جميع العناصر */
+.prop-card,
+.prop-card-body,
+.prop-card-meta,
+.prop-card-actions,
+.prop-card-footer,
+.card,
+.data-table,
+.table-container {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+/* بطاقات العقار — هاتف */
+@media (max-width: 480px) {
+  .prop-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .prop-card-img-wrap {
+    height: 180px;
+  }
+  .prop-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .prop-card-actions .btn-action {
+    min-height: 44px;
+    font-size: 13px;
+    width: 100%;
+    justify-content: center;
+  }
+  /* نافذة تفاصيل العقار على الهاتف */
+  .prop-gallery-main-img {
+    max-height: 40vh;
+  }
+  .detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+  /* الجدول على الهاتف */
+  .data-table thead {
+    display: none;
+  }
+  .data-table tr {
+    display: block;
+    border: 1px solid var(--beige-dark);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    padding: 8px;
+  }
+  .data-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 8px;
+    border: none;
+    font-size: 13px;
+    gap: 8px;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--text-light);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .data-table td.actions-cell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .data-table td.actions-cell::before {
+    display: none;
+  }
+  /* أزرار الإجراءات */
+  .action-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .action-btns .btn-action {
+    min-height: 40px;
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
+  /* الصفحة الرئيسية */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  /* البحث */
+  .prop-search-input {
+    font-size: 16px !important; /* يمنع zoom في iOS */
+  }
+  /* الشريط الجانبي */
+  .sidebar {
+    width: min(280px, 85vw);
+  }
+  /* العنوان */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .page-header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .page-header-actions > * {
+    flex: 1;
+    min-width: 0;
+  }
+  /* Modals */
+  .modal-box {
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 8px;
+    width: calc(100vw - 16px) !important;
+    max-width: none !important;
+  }
+  .modal-wide .modal-box {
+    width: calc(100vw - 16px) !important;
+    max-width: none !important;
+  }
+}
+
+/* بطاقات الأخطاء الاحترافية */
+.empty-state {
+  text-align: center;
+  padding: 40px 16px;
+}
+.empty-state .empty-icon {
+  font-size: 52px;
+  margin-bottom: 12px;
+  display: block;
+}
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+.empty-state p {
+  color: var(--text-light);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* زر btn-primary */
+.btn-primary {
+  background: linear-gradient(135deg, var(--brown-dark), var(--brown-mid));
+  color: var(--gold-light);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 20px;
+  min-height: 44px;
+  font-family: 'Cairo', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary:hover {
+  background: var(--brown-mid);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* تحسين نافذة الصلاحيات على الهاتف */
+@media (max-width: 600px) {
+  .perms-panel {
+    max-height: 55vh;
+  }
+  .perms-rows-container {
+    max-height: 45vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }

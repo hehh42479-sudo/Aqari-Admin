@@ -409,7 +409,40 @@ function emptyHtml(icon, title, msg='') {
   return `<div class="empty-state"><div class="empty-icon">${icon}</div><h3>${title}</h3>${msg?`<p>${msg}</p>`:''}</div>`;
 }
 function errorHtml(msg, retry='') {
-  return `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>خطأ</h3><p>${msg}</p>${retry?`<br><button class="btn-action btn-view" onclick="${retry}">إعادة المحاولة</button>`:''}</div>`;
+  /* تحديد نوع الخطأ لعرض رسالة مناسبة */
+  let icon = '⚠️';
+  let title = 'تعذّر تحميل البيانات';
+  let hint = msg || 'حدث خطأ غير متوقع';
+
+  if (/401|403|unauthorized|forbidden/i.test(msg)) {
+    icon = '🔐';
+    title = 'غير مصرح بالوصول';
+    hint = 'يبدو أن الجلسة انتهت أو لا تملك صلاحية لهذه الصفحة. حاول تسجيل الدخول من جديد.';
+  } else if (/404|not found/i.test(msg)) {
+    icon = '🔍';
+    title = 'البيانات غير متوفرة';
+    hint = 'هذه الخدمة لم تُفعَّل على الخادم بعد أو لا تحتوي على بيانات.';
+  } else if (/500|server/i.test(msg)) {
+    icon = '🖥️';
+    title = 'خطأ في الخادم';
+    hint = 'حدث خطأ مؤقت في الخادم. يُرجى الانتظار قليلاً ثم المحاولة مجدداً.';
+  } else if (/network|fetch|ECONNREFUSED|timeout/i.test(msg)) {
+    icon = '📡';
+    title = 'تعذّر الاتصال بالخادم';
+    hint = 'تأكد من الاتصال بالإنترنت، أو أن الخادم قيد التشغيل.';
+  } else if (/\u062a\u0639\u0630\u0631/.test(msg)) {
+    /* رسالة عربية من apiWithFallback */
+    icon = '📡';
+    title = 'البيانات غير متاحة حالياً';
+    hint = 'لم يتمكن النظام من جلب البيانات من الخادم. قد يكون الخادم في وضع الاستعداد — انتظر 30 ثانية ثم أعد المحاولة.';
+  }
+
+  return `<div class="empty-state" style="padding:40px 24px">
+    <div class="empty-icon">${icon}</div>
+    <h3 style="margin-bottom:8px">${title}</h3>
+    <p style="color:#6B7280;max-width:420px;margin:0 auto ${retry?'20px':'0'}">${hint}</p>
+    ${retry ? `<button class="btn-action btn-view" onclick="${retry}" style="margin-top:16px">🔄 إعادة المحاولة</button>` : ''}
+  </div>`;
 }
 function badgeForStatus(status) {
   const map = {
@@ -2133,6 +2166,15 @@ async function deleteChat(id) {
 async function renderReports() {
   const main = document.getElementById('main-content');
   main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري تحميل الإحصائيات...</p></div>`;
+  if (!Session.token) {
+    main.innerHTML = pageHeader('التقارير والإحصائيات','') +
+      `<div class="card"><div class="empty-state" style="padding:48px 24px">
+        <div class="empty-icon">📈</div>
+        <h3>سجّل الدخول للاستعراض</h3>
+        <p style="color:#6B7280">بيانات التقارير تتطلب تسجيل الدخول.</p>
+      </div></div>`;
+    return;
+  }
 
   /* ── Try every possible stats endpoint — return first that succeeds ── */
   let s = null;
@@ -2183,14 +2225,26 @@ async function renderReports() {
       empRes.status==='fulfilled'  ? safeJson(empRes)  : Promise.resolve({}),
     ]);
     s = {
-      total_properties: pd.total || pd.count || (pd.data||pd.properties||[]).length,
-      total_users:      ud.total || ud.count || (ud.data||ud.users||[]).length,
-      total_subscriptions: sd.total || sd.count || (sd.data||sd.subscriptions||[]).length,
-      total_verifications: vd.total || vd.count || (vd.data||vd.verifications||[]).length,
-      total_ads:        ad.total || ad.count || (ad.data||ad.ads||[]).length,
-      total_employees:  ed.total || ed.count || (ed.data||ed.employees||[]).length,
+      total_properties: pd.total || pd.count || (pd.data||pd.properties||[]).length || null,
+      total_users:      ud.total || ud.count || (ud.data||ud.users||[]).length || null,
+      total_subscriptions: sd.total || sd.count || (sd.data||sd.subscriptions||[]).length || null,
+      total_verifications: vd.total || vd.count || (vd.data||vd.verifications||[]).length || null,
+      total_ads:        ad.total || ad.count || (ad.data||ad.ads||[]).length || null,
+      total_employees:  ed.total || ed.count || (ed.data||ed.employees||[]).length || null,
       _partial: true,
     };
+    /* إذا كل القيم null — Backend لا يُرجع بيانات */
+    const allNull = Object.values(s).every(v => v === null || v === true);
+    if (allNull) {
+      main.innerHTML = pageHeader('التقارير والإحصائيات','') +
+        `<div class="card"><div class="empty-state" style="padding:48px 24px">
+          <div class="empty-icon">📊</div>
+          <h3 style="margin-bottom:8px">بيانات الإحصائيات غير متوفرة حاليًا</h3>
+          <p style="color:#6B7280;max-width:420px;margin:0 auto 20px">لم يتمكن النظام من جلب بيانات الإحصائيات من الخادم. قد يكون الخادم في وضع الاستعداد أو الـ Endpoints غير مفعّلة بعد.</p>
+          <button class="btn-white" onclick="renderReports()">🔄 إعادة المحاولة</button>
+        </div></div>`;
+      return;
+    }
   }
 
   /* ── Helper: pick first non-null value from multiple keys ── */
@@ -2651,7 +2705,19 @@ async function renderBackup() {
           <tbody>${rows}</tbody></table></div>` : emptyHtml('💾','لا توجد نسخ احتياطية بعد','اضغط على الزر أعلاه لإنشاء نسخة احتياطية')}
       </div>`;
   } catch(e) {
-    main.innerHTML = pageHeader('النسخ الاحتياطي','') + `<div class="card">${errorHtml(e.message,'renderBackup')}</div>`;
+    /* الـ Backend لا يدعم النسخ الاحتياطي حاليًا — عرض واجهة احترافية */
+    main.innerHTML = pageHeader('النسخ الاحتياطي','') +
+      `<div class="card">
+        <div class="empty-state" style="padding:48px 24px">
+          <div class="empty-icon">💾</div>
+          <h3 style="margin-bottom:8px">خدمة النسخ الاحتياطي غير مفعّلة</h3>
+          <p style="color:#6B7280;max-width:400px;margin:0 auto 20px">لم يتم تفعيل خدمة النسخ الاحتياطي التلقائية من الخادم بعد. يرجى التواصل مع مطور الـ Backend لتفعيل هذه الميزة.</p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+            <button class="btn-white" onclick="renderBackup()">🔄 إعادة المحاولة</button>
+            <button class="btn-primary" onclick="createBackup()">📦 محاولة إنشاء نسخة الآن</button>
+          </div>
+        </div>
+      </div>`;
   }
 }
 async function createBackup() {
@@ -2980,8 +3046,36 @@ async function renderContentPages() {
         <tbody>${rows||`<tr><td colspan="6" class="empty-cell">${emptyHtml('📄','لا توجد صفحات محتوى')}</td></tr>`}</tbody>
       </table></div></div>`;
   } catch(e) {
-    main.innerHTML = pageHeader('إدارة المحتوى','') + `<div class="card">${errorHtml(e.message,'renderContentPages')}</div>`;
+    /* إذا لم توجد بيانات — عرض واجهة فارغة احترافية */
+    main.innerHTML = pageHeader('إدارة المحتوى','صفحات المحتوى الثابتة.',
+      `<button class="btn-white" onclick="renderContentPages()">🔄 تحديث</button>
+       <button class="btn-primary" onclick="showAddContentModal()">+ إضافة محتوى</button>`) +
+      `<div class="card">
+        <div class="empty-state" style="padding:48px 24px">
+          <div class="empty-icon">📄</div>
+          <h3 style="margin-bottom:8px">لا توجد صفحات محتوى بعد</h3>
+          <p style="color:#6B7280;max-width:400px;margin:0 auto 20px">يمكنك إضافة صفحات مثل سياسة الخصوصية، شروط الاستخدام، من نحن، وغيرها.</p>
+          <button class="btn-primary" onclick="showAddContentModal()">+ إضافة صفحة محتوى</button>
+        </div>
+      </div>`;
   }
+}
+function showAddContentModal() {
+  openModal('إضافة صفحة محتوى', `
+    <div class="form-group"><label>العنوان</label><input type="text" id="nc-title" placeholder="مثال: سياسة الخصوصية"></div>
+    <div class="form-group"><label>المفتاح (slug)</label><input type="text" id="nc-slug" placeholder="مثال: privacy-policy"></div>
+    <div class="form-group"><label>المحتوى</label><textarea id="nc-content" rows="6" style="font-size:13px;direction:rtl;width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit" placeholder="أدخل محتوى الصفحة هنا..."></textarea></div>`,
+    async () => {
+      const title = document.getElementById('nc-title').value.trim();
+      const slug  = document.getElementById('nc-slug').value.trim();
+      const content = document.getElementById('nc-content').value.trim();
+      if (!title) { toast('أدخل عنوان الصفحة','error'); return; }
+      try {
+        await POST('/admin/content-pages', { title, slug: slug||title.toLowerCase().replace(/\s+/g,'-'), content, is_active: true });
+        toast('تمت إضافة الصفحة ✅','success'); closeModal(); renderContentPages();
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 async function editContentPage(id, title) {
   try {
