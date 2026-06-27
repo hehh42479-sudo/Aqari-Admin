@@ -1321,13 +1321,17 @@ async function renderUsersTable(type) {
   const cfg  = PAGE_CFG[type];
   try {
     const epMap = {
-      owners:  ['/admin/users?role=owner',  '/admin/owners',  '/admin/users?type=owner'],
-      offices: ['/admin/users?role=office', '/admin/offices', '/admin/users?type=office'],
-      seekers: ['/admin/users?role=seeker', '/admin/seekers', '/admin/users?type=seeker'],
+      owners:  ['/admin/users?role=owner',  '/admin/users/owners',  '/admin/owners',  '/admin/users?type=owner',  '/admin/users?account_type=owner'],
+      offices: ['/admin/users?role=office', '/admin/users/offices', '/admin/offices', '/admin/users?type=office', '/admin/users?account_type=office'],
+      seekers: ['/admin/users?role=seeker', '/admin/users/seekers', '/admin/seekers', '/admin/users?type=seeker', '/admin/users?account_type=seeker'],
     };
     const data = await cachedApi(`users-${type}`, () => apiWithFallback(epMap[type] || [cfg.endpoint]));
-    let rows = data[type]||data.users||data.data||data||[];
-    if (!Array.isArray(rows)) rows = [];
+    /* Handle all backend response shapes */
+    let rows = data[type] || data.users || data.owners || data.offices || data.seekers ||
+               data.data || data.results || data.items || [];
+    if (!Array.isArray(rows)) {
+      rows = Object.values(data).find(v => Array.isArray(v) && v.length > 0) || [];
+    }
 
     const thead = `<tr>${cfg.cols.map(c=>`<th>${c}</th>`).join('')}</tr>`;
     const tbody = rows.length
@@ -1359,14 +1363,38 @@ async function renderUsersTable(type) {
 /* ── User Profile Modal ─────────────────────────────── */
 async function viewUserProfile(type, id) {
   try {
-    const data = await GET(`/admin/users/${id}`);
-    const u = data.user || data.data || data;
+    /* Try multiple endpoints to get user profile */
+    let u = null;
+    const profileEndpoints = [
+      `/admin/users/${id}`,
+      `/admin/${type}s/${id}`,
+      `/admin/users/${type}s/${id}`,
+    ];
+    for (const ep of profileEndpoints) {
+      try {
+        const data = await GET(ep);
+        const extracted = data.user || data.owner || data.office || data.seeker || data.data || data;
+        if (extracted && typeof extracted === 'object' && (extracted.id || extracted.phone || extracted.name)) {
+          u = extracted;
+          break;
+        }
+      } catch(_) {}
+    }
+    if (!u) throw new Error('تعذر تحميل بيانات المستخدم');
 
-    const photo = u.profile_photo || u.avatar || u.photo || u.office_logo || '';
-    const idFront = u.id_front || u.national_id_front || u.id_photo_front || u.id_image || '';
-    const idBack  = u.id_back  || u.national_id_back  || u.id_photo_back  || '';
-    const commReg = u.commercial_registration || u.commercial_reg || u.cr_photo || '';
+    /* Resolve media URL helper */
+    const resolveUrl = (v) => {
+      if (!v || v === 'null' || v === 'undefined') return '';
+      const s = String(v).trim();
+      if (!s) return '';
+      if (/^https?:\/\//i.test(s)) return s;
+      return 'https://aqari-backend.onrender.com' + (s.startsWith('/') ? s : '/' + s);
+    };
 
+    const photo   = resolveUrl(u.profile_photo || u.avatar || u.photo || u.office_logo || u.profile_image || u.image || '');
+    const idFront = resolveUrl(u.id_front || u.national_id_front || u.id_photo_front || u.id_image || u.national_id_photo || '');
+    const idBack  = resolveUrl(u.id_back  || u.national_id_back  || u.id_photo_back  || '');
+    const commReg = resolveUrl(u.commercial_registration_photo || u.commercial_reg || u.cr_photo || u.license_photo || '');
     const allIdPhotos = [idFront, idBack, commReg].filter(Boolean);
 
     const photoHtml = photo
@@ -1381,8 +1409,8 @@ async function viewUserProfile(type, id) {
         </div>`;
 
     const idPhotosHtml = allIdPhotos.length
-      ? `<div style="margin-top:12px">
-          <strong>صور الهوية والوثائق:</strong>
+      ? `<div style="margin-top:16px">
+          <strong>📎 صور الهوية والوثائق:</strong>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             ${allIdPhotos.map((url,i) => `<img src="${url}" alt="وثيقة ${i+1}"
               style="width:120px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #ddd;cursor:pointer"
@@ -1391,20 +1419,29 @@ async function viewUserProfile(type, id) {
         </div>`
       : '';
 
-    openModal(`الملف الشخصي — ${u.name || u.full_name || '#'+id}`, `
+    openModal(`الملف الشخصي — ${u.name || u.full_name || u.office_name || '#'+id}`, `
       ${photoHtml}
       <div class="detail-grid">
-        <div class="detail-item"><span class="detail-label">الاسم</span><span class="detail-val">${u.name||u.full_name||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">الهاتف</span><span class="detail-val">${u.phone||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الاسم</span><span class="detail-val">${u.name||u.full_name||u.office_name||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الهاتف</span><span class="detail-val">${u.phone||u.mobile||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">واتساب</span><span class="detail-val">${u.whatsapp||'—'}</span></div>
         <div class="detail-item"><span class="detail-label">البريد</span><span class="detail-val">${u.email||'—'}</span></div>
         <div class="detail-item"><span class="detail-label">الحالة</span><span class="detail-val">${badgeForStatus(u.status||'active')}</span></div>
-        <div class="detail-item"><span class="detail-label">الدور</span><span class="detail-val">${u.role||type}</span></div>
+        <div class="detail-item"><span class="detail-label">الدور</span><span class="detail-val">${u.role||u.account_type||type}</span></div>
         ${type==='office' ? `
-        <div class="detail-item"><span class="detail-label">اسم المكتب</span><span class="detail-val">${u.office_name||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">اسم المكتب</span><span class="detail-val">${u.office_name||u.company_name||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">رقم السجل التجاري</span><span class="detail-val">${u.commercial_reg_number||u.cr_number||'—'}</span></div>
         <div class="detail-item"><span class="detail-label">التوثيق</span><span class="detail-val">${u.is_verified||u.verified ? '<span class="badge badge-green">موثق ✅</span>' : '<span class="badge badge-gray">غير موثق</span>'}</span></div>
         ` : ''}
+        ${type==='seeker' ? `
+        <div class="detail-item"><span class="detail-label">الميزانية</span><span class="detail-val">${fmtNum(u.budget||u.max_budget)||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">المدينة المطلوبة</span><span class="detail-val">${u.preferred_city||u.city||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">نوع العقار المطلوب</span><span class="detail-val">${u.property_type||'—'}</span></div>
+        ` : ''}
+        <div class="detail-item"><span class="detail-label">عدد العقارات</span><span class="detail-val">${fmtNum(u.properties_count||u.listings_count||0)}</span></div>
+        <div class="detail-item"><span class="detail-label">الباقة الحالية</span><span class="detail-val">${u.currentPackage||u.current_package||u.package_name||'—'}</span></div>
         <div class="detail-item"><span class="detail-label">تاريخ التسجيل</span><span class="detail-val">${fmtDate(u.created_at)}</span></div>
-        ${u.properties_count != null ? `<div class="detail-item"><span class="detail-label">العقارات</span><span class="detail-val">${fmtNum(u.properties_count)}</span></div>` : ''}
+        <div class="detail-item"><span class="detail-label">آخر دخول</span><span class="detail-val">${fmtDate(u.last_login||u.last_seen)}</span></div>
       </div>
       ${idPhotosHtml}
     `, null);
@@ -1502,29 +1539,110 @@ async function unverifyOffice(id) {
 async function renderSeekerRequests() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/requests','/admin/seeker-requests','/admin/property-requests']);
-    const rows = data.requests||data.data||[];
-    const thead = `<tr><th>رقم الطلب</th><th>الباحث</th><th>المدينة</th><th>النوع</th><th>الميزانية</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
-    const tbody = rows.length
-      ? rows.map(r=>`<tr>
-          <td data-label="رقم الطلب">${r.id}</td>
-          <td data-label="الباحث">${r.user_name||r.seeker_name||r.phone||'—'}</td>
-          <td data-label="المدينة">${r.city||'—'}</td>
-          <td data-label="النوع">${r.property_type||'—'}</td>
-          <td data-label="الميزانية">${fmtNum(r.budget)||fmtNum(r.max_price)||'—'}</td>
-          <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
-          <td data-label="التاريخ">${fmtDate(r.created_at)}</td>
-          <td data-label="إجراءات" class="actions-cell"><div class="action-btns"><button class="btn-action btn-delete btn-sm" onclick="deleteRequest(${r.id})">حذف</button></div></td>
-        </tr>`).join('')
-      : `<tr><td colspan="8" class="empty-cell">${emptyHtml('📋','لا توجد طلبات')}</td></tr>`;
+    const data = await apiWithFallback([
+      '/admin/requests',
+      '/admin/seeker-requests',
+      '/admin/property-requests',
+      '/admin/seekers/requests',
+      '/admin/search-requests',
+    ]);
+    const rows = data.requests || data.seeker_requests || data.property_requests ||
+                 data.data || data.results || data.items || [];
+    const arrRows = Array.isArray(rows) ? rows : [];
+    const thead = `<tr>
+      <th>رقم الطلب</th>
+      <th>الباحث</th>
+      <th>الهاتف</th>
+      <th>المدينة</th>
+      <th>المحافظة / المنطقة</th>
+      <th>نوع العقار</th>
+      <th>الميزانية</th>
+      <th>نوع العملية</th>
+      <th>الحالة</th>
+      <th>التاريخ</th>
+      <th>إجراءات</th>
+    </tr>`;
+    const tbody = arrRows.length
+      ? arrRows.map(r => {
+          /* Extract budget — handle multiple field names */
+          const budget = r.budget || r.max_price || r.max_budget || r.price_max || r.price_to || '';
+          const budgetMin = r.min_price || r.min_budget || r.price_min || r.price_from || '';
+          const budgetStr = budgetMin && budget
+            ? `${fmtNum(budgetMin)} - ${fmtNum(budget)}`
+            : budget ? fmtNum(budget) : '—';
+
+          /* Extract location */
+          const city = r.city || r.preferred_city || r.location?.city || '—';
+          const district = r.district || r.neighborhood || r.governorate || r.region || r.area || '—';
+
+          /* Extract property type */
+          const propType = r.property_type || r.propertyType || r.type || '—';
+          const opType = r.operation_type || r.offer_type || r.operationType || r.purpose || '—';
+
+          /* Extract user info */
+          const userName = r.user_name || r.seeker_name || r.user?.name || r.owner_name || '—';
+          const userPhone = r.user_phone || r.phone || r.user?.phone || r.seeker_phone || '—';
+
+          return `<tr>
+            <td data-label="رقم الطلب"><strong>#${r.id}</strong></td>
+            <td data-label="الباحث">${userName}</td>
+            <td data-label="الهاتف">${userPhone}</td>
+            <td data-label="المدينة">${city}</td>
+            <td data-label="المحافظة">${district}</td>
+            <td data-label="نوع العقار">${propType}</td>
+            <td data-label="الميزانية"><strong style="color:var(--gold)">${budgetStr}</strong></td>
+            <td data-label="نوع العملية">${opType}</td>
+            <td data-label="الحالة">${badgeForStatus(r.status||'active')}</td>
+            <td data-label="التاريخ">${fmtDate(r.created_at||r.requested_at)}</td>
+            <td data-label="إجراءات" class="actions-cell">
+              <div class="action-btns">
+                <button class="btn-action btn-view btn-sm" onclick="viewRequestDetail(${r.id})">تفاصيل</button>
+                <button class="btn-action btn-delete btn-sm" onclick="deleteRequest(${r.id})">حذف</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="11" class="empty-cell">${emptyHtml('📋','لا توجد طلبات','لم يقدم أي باحث طلبًا بعد')}</td></tr>`;
+
     main.innerHTML = pageHeader('طلبات الباحثين','جميع طلبات البحث عن العقارات.',
       `<button class="btn-white" onclick="renderSeekerRequests()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container">
-        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-      </div></div>`;
+      `<div class="card">
+        <div class="table-container">
+          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        </div>
+        <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${arrRows.length} طلب</p>
+      </div>`;
   } catch(e) {
     main.innerHTML = pageHeader('طلبات الباحثين','') +
       `<div class="card">${errorHtml(e.message,'renderSeekerRequests')}</div>`;
+  }
+}
+
+async function viewRequestDetail(id) {
+  try {
+    const data = await apiWithFallback([`/admin/requests/${id}`, `/admin/seeker-requests/${id}`]);
+    const r = data.request || data.data || data;
+    const budget = r.budget || r.max_price || r.max_budget || '';
+    const budgetMin = r.min_price || r.min_budget || r.price_from || '';
+    openModal(`تفاصيل الطلب #${id}`, `
+      <div class="detail-grid">
+        <div class="detail-item"><span class="detail-label">رقم الطلب</span><span class="detail-val">#${r.id||id}</span></div>
+        <div class="detail-item"><span class="detail-label">الباحث</span><span class="detail-val">${r.user_name||r.seeker_name||r.user?.name||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الهاتف</span><span class="detail-val">${r.user_phone||r.phone||r.user?.phone||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">المدينة</span><span class="detail-val">${r.city||r.preferred_city||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">المحافظة / المنطقة</span><span class="detail-val">${r.governorate||r.district||r.neighborhood||r.area||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">نوع العقار</span><span class="detail-val">${r.property_type||r.type||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">نوع العملية</span><span class="detail-val">${r.operation_type||r.offer_type||r.purpose||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الميزانية الدنيا</span><span class="detail-val">${budgetMin?fmtNum(budgetMin):'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الميزانية القصوى</span><span class="detail-val">${budget?fmtNum(budget):'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">المساحة</span><span class="detail-val">${r.area||r.min_area||'—'} ${r.measurement_unit||'م²'}</span></div>
+        <div class="detail-item"><span class="detail-label">عدد الغرف</span><span class="detail-val">${r.rooms||r.bedrooms||r.min_rooms||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">الحالة</span><span class="detail-val">${badgeForStatus(r.status||'active')}</span></div>
+        <div class="detail-item"><span class="detail-label">التاريخ</span><span class="detail-val">${fmtDate(r.created_at)}</span></div>
+        ${r.notes||r.description ? `<div class="detail-item" style="grid-column:1/-1"><span class="detail-label">ملاحظات</span><span class="detail-val">${r.notes||r.description}</span></div>` : ''}
+      </div>`, null);
+  } catch(e) {
+    toast('تعذر تحميل تفاصيل الطلب: ' + e.message, 'error');
   }
 }
 async function deleteRequest(id) {
@@ -1903,30 +2021,77 @@ async function renderPackages() {
       '/admin/packages',
       '/admin/subscription-packages',
       '/admin/pricing',
+      '/admin/plans',
+      '/admin/subscriptions/packages',
+      '/packages',
+      '/plans',
     ]);
-    const list = data.packages || data.plans || data.data || data || [];
-    const rows = Array.isArray(list) ? list.map(p => `<tr>
+
+    /* Normalize — backend may return packages under various keys or directly as array */
+    let list = data.packages || data.plans || data.pricing || data.subscription_packages
+            || data.data || data.results || data.items || data || [];
+
+    if (!Array.isArray(list)) {
+      /* Maybe a plain object with package entries */
+      list = Object.values(list).find(v => Array.isArray(v) && v.length > 0) || [];
+    }
+    if (!Array.isArray(list)) list = [];
+
+    const pkgBadge = (p) => {
+      const isActive = p.is_active ?? p.active ?? p.status === 'active' ?? true;
+      return `<span class="badge ${isActive?'badge-green':'badge-red'}">${isActive?'نشط ✅':'معطّل ❌'}</span>`;
+    };
+
+    const featuresHtml = (p) => {
+      const feats = p.features || p.feature_list || p.perks || [];
+      if (!Array.isArray(feats) || !feats.length) return '';
+      return `<ul style="margin:4px 0 0 0;padding:0 16px 0 0;font-size:11px;color:#666;list-style:disc">
+        ${feats.slice(0,4).map(f=>`<li>${f}</li>`).join('')}
+      </ul>`;
+    };
+
+    const rows = list.map(p => `<tr>
       <td data-label="#"><strong>${p.id||'-'}</strong></td>
-      <td data-label="الباقة"><strong>${p.name||p.name_ar||p.title||'-'}</strong><br><small style="color:#888">${p.name_en||p.description||''}</small></td>
-      <td data-label="السعر"><strong style="color:var(--gold)">${p.price||p.amount||'-'}</strong> ${p.currency||'USD'}</td>
-      <td data-label="المدة">${p.duration_days?p.duration_days+' يوم':p.duration?p.duration+' يوم':'-'}</td>
-      <td data-label="حد العقارات">${p.max_properties||p.properties_limit||p.max_listings||'—'}</td>
-      <td data-label="حد الموظفين">${p.max_employees||p.employees_limit||p.max_team||'—'}</td>
-      <td data-label="الحالة"><span class="badge ${p.is_active||p.active||p.status==='active'?'badge-green':'badge-red'}">${p.is_active||p.active||p.status==='active'?'نشط':'معطّل'}</span></td>
+      <td data-label="الباقة">
+        <strong>${p.name||p.name_ar||p.title||p.package_name||'-'}</strong>
+        ${p.name_en||p.description ? `<br><small style="color:#888">${p.name_en||''} ${p.description?(p.name_en?'— ':'')+p.description.substring(0,40):''}</small>` : ''}
+        ${featuresHtml(p)}
+      </td>
+      <td data-label="السعر"><strong style="color:var(--gold)">${fmtNum(p.price||p.amount||p.cost||0)}</strong> <small>${p.currency||'USD'}</small></td>
+      <td data-label="المدة">${p.duration_days?p.duration_days+' يوم':p.duration?p.duration+' يوم':p.period?p.period:'-'}</td>
+      <td data-label="حد العقارات">${p.max_properties??p.properties_limit??p.max_listings??p.listings_limit??'—'}</td>
+      <td data-label="حد الموظفين">${p.max_employees??p.employees_limit??p.max_team??p.team_limit??'—'}</td>
+      <td data-label="الحالة">${pkgBadge(p)}</td>
       <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
-        <button class="btn-action btn-view btn-sm" onclick="editPackage(${p.id},'${(p.name||'').replace(/'/g,'')}',${p.price||0},${p.duration_days||p.duration||30},${p.max_properties||0},${p.max_employees||0})">تعديل</button>
+        <button class="btn-action btn-view btn-sm" onclick="editPackage(${p.id},'${(p.name||p.name_ar||'').replace(/'/g,'')}',${p.price||p.amount||0},${p.duration_days||p.duration||30},${p.max_properties||0},${p.max_employees||0})">تعديل</button>
+        <button class="btn-action ${(p.is_active??p.active??true)?'btn-warn':'btn-approve'} btn-sm" onclick="togglePackage(${p.id},${!!(p.is_active??p.active??true)})">${(p.is_active??p.active??true)?'تعطيل':'تفعيل'}</button>
         <button class="btn-action btn-delete btn-sm" onclick="deletePackage(${p.id})">حذف</button>
       </div></td>
-    </tr>`).join('') : '';
+    </tr>`).join('');
+
     main.innerHTML = pageHeader('الباقات','إدارة باقات الاشتراك المتاحة في التطبيق.',
       `<button class="btn-white" onclick="showAddPackageModal()">+ إضافة باقة</button>`) +
       `<div class="card">
-        ${rows ? `<div class="table-container"><table class="data-table">
+        ${list.length ? `<div class="table-container"><table class="data-table">
           <thead><tr><th>#</th><th>الباقة</th><th>السعر</th><th>المدة</th><th>حد العقارات</th><th>حد الموظفين</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-          <tbody>${rows}</tbody></table></div>` : emptyHtml('📦','لا توجد باقات مُعرَّفة','أضف باقة جديدة لعرضها هنا')}
+          <tbody>${rows}</tbody></table></div>
+          <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${list.length} باقة</p>`
+        : emptyHtml('📦','لا توجد باقات مُعرَّفة','أضف باقة جديدة لعرضها هنا')}
       </div>`;
   } catch(e) {
     main.innerHTML = pageHeader('الباقات','') + `<div class="card">${errorHtml(e.message,'renderPackages')}</div>`;
+  }
+}
+async function togglePackage(id, currentActive) {
+  try {
+    await PATCH(`/admin/packages/${id}`, { is_active: !currentActive });
+    toast(currentActive ? 'تم تعطيل الباقة' : 'تم تفعيل الباقة ✅','success');
+    renderPackages();
+  } catch(e) {
+    try {
+      await PUT(`/admin/packages/${id}`, { is_active: !currentActive });
+      toast('تم التحديث ✅','success'); renderPackages();
+    } catch(e2) { toast(e2.message,'error'); }
   }
 }
 
@@ -1997,22 +2162,40 @@ async function deletePackage(id) {
 async function renderSubscriptions() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/subscriptions','/admin/subscription-requests','/admin/user-subscriptions']);
-    const rows = data.subscriptions||data.requests||data.data||[];
+    const data = await apiWithFallback([
+      '/admin/subscriptions',
+      '/admin/subscription-requests',
+      '/admin/user-subscriptions',
+      '/admin/subscriptions/all',
+    ]);
+    const rows = data.subscriptions || data.requests || data.subscription_requests ||
+                 data.data || data.results || data.items || [];
+    const arrRows = Array.isArray(rows) ? rows : [];
     const thead = `<tr>
-      <th>رقم الطلب</th><th>المستخدم</th><th>الهاتف</th><th>نوع الحساب</th>
-      <th>الباقة</th><th>تاريخ الطلب</th><th>الحالة</th><th>انتهاء</th><th>إجراءات</th>
+      <th>رقم الطلب</th>
+      <th>رقم المستخدم</th>
+      <th>المستخدم</th>
+      <th>الهاتف</th>
+      <th>نوع الحساب</th>
+      <th>الباقة</th>
+      <th>معرف الاشتراك</th>
+      <th>تاريخ الطلب</th>
+      <th>الحالة</th>
+      <th>انتهاء الاشتراك</th>
+      <th>إجراءات</th>
     </tr>`;
-    const tbody = rows.length
-      ? rows.map(r=>`<tr>
+    const tbody = arrRows.length
+      ? arrRows.map(r=>`<tr>
           <td data-label="رقم الطلب"><strong>#${r.id}</strong></td>
-          <td data-label="المستخدم">${r.user_name||r.office_name||r.user_id||'—'}</td>
-          <td data-label="الهاتف">${r.user_phone||r.phone||'—'}</td>
-          <td data-label="نوع الحساب"><span class="badge badge-gold">${r.user_role||r.account_type||'—'}</span></td>
-          <td data-label="الباقة">${r.package_name||r.plan_type||r.packageType||'—'}</td>
+          <td data-label="رقم المستخدم">${r.user_id||r.userId||'—'}</td>
+          <td data-label="المستخدم">${r.user_name||r.office_name||r.user?.name||'—'}</td>
+          <td data-label="الهاتف">${r.user_phone||r.phone||r.user?.phone||'—'}</td>
+          <td data-label="نوع الحساب"><span class="badge badge-gold">${r.user_role||r.account_type||r.user?.role||'—'}</span></td>
+          <td data-label="الباقة">${r.package_name||r.plan_type||r.packageType||r.package?.name||'—'}</td>
+          <td data-label="معرف الاشتراك"><code style="font-size:11px">${r.subscription_id||r.subscriptionId||r.order_id||r.transaction_id||'—'}</code></td>
           <td data-label="تاريخ الطلب">${fmtDate(r.created_at||r.requested_at)}</td>
           <td data-label="الحالة">${badgeForStatus(r.status||'pending')}</td>
-          <td data-label="انتهاء">${fmtDate(r.expiry_date||r.expires_at)}</td>
+          <td data-label="انتهاء الاشتراك">${fmtDate(r.expiry_date||r.expires_at||r.end_date)}</td>
           <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
             ${r.status==='pending'||r.status==='pending_review'?`
               <button class="btn-action btn-approve btn-sm" onclick="approveSubscription(${r.id})">قبول</button>
@@ -2664,22 +2847,66 @@ async function renderActivityLogs() {
 async function renderSettings() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/settings','/admin/app-settings','/admin/config/settings']);
-    const settings = data.settings||data||{};
-    const rows = Object.entries(settings).map(([k,v])=>
-      `<div class="insight-row">
-        <span class="insight-label">${k}</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="insight-value">${typeof v==='object'?JSON.stringify(v).slice(0,60):String(v)}</span>
-          <button class="btn-action btn-view btn-sm" onclick="editSetting('${k}','${String(v).replace(/'/g,'')}')">تعديل</button>
+    const data = await apiWithFallback([
+      '/admin/settings',
+      '/admin/app-settings',
+      '/admin/settings/app',
+      '/admin/config/settings',
+      '/admin/settings/all',
+    ]);
+    const settings = data.settings || data.config || data.app_settings || data || {};
+
+    /* Group settings by category */
+    const SETTING_LABELS = {
+      app_name: 'اسم التطبيق', name: 'الاسم', logo: 'الشعار', icon: 'الأيقونة',
+      splash_screen: 'شاشة البداية', app_images: 'صور التطبيق',
+      primary_color: 'اللون الرئيسي', secondary_color: 'اللون الثانوي',
+      email: 'البريد الإلكتروني', phone: 'رقم الهاتف', whatsapp: 'واتساب',
+      facebook: 'فيسبوك', twitter: 'تويتر / X', instagram: 'انستغرام',
+      youtube: 'يوتيوب', linkedin: 'لينكدإن',
+      website: 'رابط الموقع', play_store_url: 'رابط Google Play',
+      app_store_url: 'رابط App Store',
+      privacy_policy: 'سياسة الخصوصية', terms_conditions: 'الشروط والأحكام',
+      about_us: 'من نحن', contact_us: 'تواصل معنا',
+      notifications_enabled: 'الإشعارات مفعّلة',
+      maintenance_mode: 'وضع الصيانة',
+      max_properties: 'الحد الأقصى للعقارات',
+      featured_days: 'أيام التميّز الافتراضية',
+    };
+
+    const renderValue = (k, v) => {
+      if (v === null || v === undefined) return '<span style="color:#aaa">—</span>';
+      if (typeof v === 'boolean') return v ? '<span class="badge badge-green">مفعّل ✅</span>' : '<span class="badge badge-red">معطّل ❌</span>';
+      const s = String(v);
+      if (s.startsWith('http')) return `<a href="${s}" target="_blank" style="color:var(--gold);font-size:12px">${s.substring(0,50)}...</a>`;
+      if (s.length > 100) return `<span style="font-size:12px;color:#555">${s.substring(0,100)}...</span>`;
+      return `<span>${s}</span>`;
+    };
+
+    const rows = Object.entries(settings).map(([k, v]) => {
+      const label = SETTING_LABELS[k] || k;
+      const isMedia = ['logo','icon','splash_screen','app_images'].includes(k) || String(v).startsWith('http') && /\.(jpg|jpeg|png|webp|gif|svg)/i.test(String(v));
+      const mediaHtml = isMedia && String(v).startsWith('http')
+        ? `<img src="${v}" style="height:40px;border-radius:6px;margin-right:8px;cursor:pointer" onclick="openImageModal(['${v}'])">`
+        : '';
+      return `<div class="insight-row" style="align-items:center">
+        <span class="insight-label">${label}</span>
+        <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end">
+          ${mediaHtml}
+          <span class="insight-value" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${renderValue(k,v)}</span>
+          <button class="btn-action btn-view btn-sm" onclick="editSetting('${k}','${String(v||'').replace(/'/g,'')}')">تعديل</button>
         </div>
-      </div>`
-    ).join('');
-    main.innerHTML = pageHeader('الإعدادات','إعدادات التطبيق العامة.',
+      </div>`;
+    }).join('');
+
+    main.innerHTML = pageHeader('إعدادات التطبيق','إعدادات وتكوين التطبيق العامة.',
       `<button class="btn-white" onclick="renderSettings()">🔄 تحديث</button>`) +
-      `<div class="card"><h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚙️ الإعدادات الحالية</h3>${rows||'<p style="color:#6B7280">لا توجد إعدادات</p>'}</div>`;
+      `<div class="card">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚙️ إعدادات التطبيق</h3>
+        ${rows || '<p style="color:#6B7280;text-align:center;padding:24px">لا توجد إعدادات متاحة</p>'}
+      </div>`;
   } catch(e) {
-    main.innerHTML = pageHeader('الإعدادات','') +
+    main.innerHTML = pageHeader('إعدادات التطبيق','') +
       `<div class="card">${errorHtml(e.message,'renderSettings')}</div>`;
   }
 }
@@ -2704,38 +2931,93 @@ function editSetting(key, currentValue) {
 }
 
 /* ══════════════════════════════════════════════════════
-   PAGE: LOCATIONS — FIXED with proper display
+   PAGE: LOCATIONS — FIXED with City + Governorate + District
 ══════════════════════════════════════════════════════ */
 async function renderLocations() {
   const main = document.getElementById('main-content');
   try {
+    /* Try all possible endpoints — cities, governorates, districts, general locations */
     const data = await apiWithFallback([
+      '/admin/locations',
       '/admin/locations/cities',
       '/admin/cities',
+      '/admin/governorates',
+      '/admin/locations/governorates',
+      '/admin/locations/all',
       '/locations/cities',
       '/cities',
     ]);
-    const rows = data.cities||data.data||data||[];
-    const arrRows = Array.isArray(rows) ? rows : [];
-    const thead = `<tr><th>#</th><th>اسم المدينة</th><th>المحافظة / المنطقة</th><th>الإجراءات</th></tr>`;
-    const tbody = arrRows.length
-      ? arrRows.map(r=>`<tr>
+
+    /* Normalize response — backend may return different shapes */
+    let cities = data.cities || data.data || data.locations || data || [];
+    let governorates = data.governorates || [];
+    let districts = data.districts || data.regions || data.neighborhoods || [];
+
+    if (!Array.isArray(cities)) {
+      cities = Object.values(data).find(v => Array.isArray(v) && v.length > 0) || [];
+    }
+
+    /* Build governorates table if returned separately */
+    const govRows = Array.isArray(governorates) && governorates.length
+      ? `<div class="card" style="margin-top:16px">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">🗺️ المحافظات (${governorates.length})</h3>
+          <div class="table-container"><table class="data-table">
+            <thead><tr><th>#</th><th>المحافظة</th><th>الرمز</th><th>الإجراءات</th></tr></thead>
+            <tbody>${governorates.map(g=>`<tr>
+              <td>${g.id||'—'}</td>
+              <td><strong>${g.name||g.name_ar||g.governorate_name||'—'}</strong></td>
+              <td><code style="font-size:11px">${g.code||g.slug||'—'}</code></td>
+              <td class="actions-cell"><div class="action-btns">
+                <button class="btn-action btn-delete btn-sm" onclick="deleteCity(${g.id})">حذف</button>
+              </div></td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>`
+      : '';
+
+    /* Build districts table if returned separately */
+    const distRows = Array.isArray(districts) && districts.length
+      ? `<div class="card" style="margin-top:16px">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">📌 المناطق / الأحياء (${districts.length})</h3>
+          <div class="table-container"><table class="data-table">
+            <thead><tr><th>#</th><th>المنطقة</th><th>المدينة / المحافظة</th><th>الإجراءات</th></tr></thead>
+            <tbody>${districts.map(d=>`<tr>
+              <td>${d.id||'—'}</td>
+              <td><strong>${d.name||d.name_ar||d.district_name||d.neighborhood||'—'}</strong></td>
+              <td>${d.city||d.city_name||d.governorate||d.governorate_name||'—'}</td>
+              <td class="actions-cell"><div class="action-btns">
+                <button class="btn-action btn-delete btn-sm" onclick="deleteCity(${d.id})">حذف</button>
+              </div></td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>`
+      : '';
+
+    const thead = `<tr><th>#</th><th>اسم المدينة</th><th>المحافظة</th><th>المنطقة / الحي</th><th>الكود</th><th>الإجراءات</th></tr>`;
+    const tbody = cities.length
+      ? cities.map(r=>`<tr>
           <td data-label="#">${r.id||'—'}</td>
           <td data-label="اسم المدينة"><strong>${r.name||r.city_name||r.name_ar||'—'}</strong></td>
-          <td data-label="المحافظة">${r.governorate||r.governorate_name||r.region||'—'}</td>
+          <td data-label="المحافظة">${r.governorate||r.governorate_name||r.province||r.state||'—'}</td>
+          <td data-label="المنطقة">${r.district||r.region||r.neighborhood||r.area||r.zone||'—'}</td>
+          <td data-label="الكود"><code style="font-size:11px">${r.code||r.slug||r.zip||'—'}</code></td>
           <td data-label="الإجراءات" class="actions-cell"><div class="action-btns">
             <button class="btn-action btn-view btn-sm" onclick="editCity(${r.id},'${(r.name||'').replace(/'/g,'')}','${(r.governorate||'').replace(/'/g,'')}')">تعديل</button>
             <button class="btn-action btn-delete btn-sm" onclick="deleteCity(${r.id})">حذف</button>
           </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('📍','لا توجد مدن')}</td></tr>`;
-    main.innerHTML = pageHeader('المواقع الجغرافية','إدارة المدن والمناطق.',
+      : `<tr><td colspan="6" class="empty-cell">${emptyHtml('📍','لا توجد مدن')}</td></tr>`;
+
+    main.innerHTML = pageHeader('المواقع الجغرافية','إدارة المدن والمحافظات والمناطق.',
       `<button class="btn-white" onclick="showAddCityModal()">+ إضافة مدينة</button>`) +
-      `<div class="card"><div class="table-container">
-        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+      `<div class="card">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">🏙️ المدن (${cities.length})</h3>
+        <div class="table-container">
+          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        </div>
+        <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${cities.length} مدينة</p>
       </div>
-      <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${arrRows.length} مدينة</p>
-      </div>`;
+      ${govRows}${distRows}`;
   } catch(e) {
     main.innerHTML = pageHeader('المواقع الجغرافية','') +
       `<div class="card">${errorHtml(e.message,'renderLocations')}</div>`;
@@ -2795,38 +3077,101 @@ async function deleteCity(id) {
 }
 
 /* ══════════════════════════════════════════════════════
-   PAGE: PROPERTY TYPES — FIXED with proper display
+   PAGE: PROPERTY TYPES — FIXED with name, description, details, status
 ══════════════════════════════════════════════════════ */
 async function renderPropertyTypes() {
   const main = document.getElementById('main-content');
   try {
     const data = await apiWithFallback([
       '/admin/property-types',
-      '/property-types',
       '/admin/property_types',
+      '/admin/properties/types',
+      '/admin/types',
+      '/property-types',
     ]);
-    const rows = data.types||data.property_types||data.data||data||[];
-    const arrRows = Array.isArray(rows) ? rows : [];
-    const thead = `<tr><th>#</th><th>النوع</th><th>الوصف</th><th>إجراءات</th></tr>`;
+    const rows = data.types||data.property_types||data.propertyTypes||data.data||data||[];
+    const arrRows = Array.isArray(rows) ? rows : (typeof rows === 'object' ? Object.values(rows) : []);
+
+    const statusBadge = (r) => {
+      const isActive = r.is_active ?? r.active ?? r.status === 'active' ?? r.enabled ?? true;
+      return isActive
+        ? '<span class="badge badge-green">نشط ✅</span>'
+        : '<span class="badge badge-red">معطّل ❌</span>';
+    };
+
+    const thead = `<tr>
+      <th>#</th>
+      <th>النوع (عربي)</th>
+      <th>النوع (إنجليزي)</th>
+      <th>الوصف</th>
+      <th>التفاصيل</th>
+      <th>الحالة</th>
+      <th>إجراءات</th>
+    </tr>`;
     const tbody = arrRows.length
       ? arrRows.map(r=>`<tr>
           <td data-label="#">${r.id||'—'}</td>
-          <td data-label="النوع"><strong>${r.name||r.name_ar||r.type_name||'—'}</strong></td>
-          <td data-label="الوصف">${r.description||r.description_ar||'—'}</td>
+          <td data-label="النوع (عربي)"><strong>${r.name||r.name_ar||r.type_name||r.label||'—'}</strong></td>
+          <td data-label="النوع (إنجليزي)"><span style="color:#888;font-size:12px">${r.name_en||r.type_name_en||r.label_en||'—'}</span></td>
+          <td data-label="الوصف" style="max-width:160px;white-space:normal">${(r.description||r.description_ar||r.desc||'—').substring(0,80)}</td>
+          <td data-label="التفاصيل" style="max-width:160px;white-space:normal"><span style="font-size:12px;color:#555">${(r.details||r.details_ar||r.features||'—').substring(0,80)}</span></td>
+          <td data-label="الحالة">${statusBadge(r)}</td>
           <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
+            <button class="btn-action btn-view btn-sm" onclick="editPropertyType(${r.id},'${(r.name||r.name_ar||'').replace(/'/g,'')}','${(r.description||'').replace(/'/g,'')}')">تعديل</button>
+            <button class="btn-action ${(r.is_active??r.active??true)?'btn-warn':'btn-approve'} btn-sm"
+              onclick="togglePropertyType(${r.id},${!!(r.is_active??r.active??true)})">
+              ${(r.is_active??r.active??true)?'تعطيل':'تفعيل'}
+            </button>
             <button class="btn-action btn-delete btn-sm" onclick="deletePropertyType(${r.id})">حذف</button>
           </div></td>
         </tr>`).join('')
-      : `<tr><td colspan="4" class="empty-cell">${emptyHtml('🏗️','لا توجد أنواع عقارات')}</td></tr>`;
-    main.innerHTML = pageHeader('أنواع العقارات','إدارة أنواع العقارات المتاحة.',
+      : `<tr><td colspan="7" class="empty-cell">${emptyHtml('🏗️','لا توجد أنواع عقارات')}</td></tr>`;
+
+    main.innerHTML = pageHeader('أنواع العقارات','إدارة أنواع العقارات المتاحة في التطبيق.',
       `<button class="btn-white" onclick="showAddPropertyTypeModal()">+ إضافة نوع</button>`) +
-      `<div class="card"><div class="table-container">
-        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-      </div></div>`;
+      `<div class="card">
+        <div class="table-container">
+          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        </div>
+        <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${arrRows.length} نوع عقار</p>
+      </div>`;
   } catch(e) {
     main.innerHTML = pageHeader('أنواع العقارات','') +
       `<div class="card">${errorHtml(e.message,'renderPropertyTypes')}</div>`;
   }
+}
+async function togglePropertyType(id, currentActive) {
+  try {
+    await PATCH(`/admin/property-types/${id}`, { is_active: !currentActive });
+    toast(currentActive ? 'تم تعطيل النوع' : 'تم تفعيل النوع ✅','success');
+    renderPropertyTypes();
+  } catch(e) {
+    try {
+      await PUT(`/admin/property-types/${id}`, { is_active: !currentActive });
+      toast('تم التحديث ✅','success'); renderPropertyTypes();
+    } catch(e2) { toast(e2.message,'error'); }
+  }
+}
+function editPropertyType(id, name, description) {
+  openModal(`تعديل نوع العقار: ${name}`, `
+    <div class="form-group"><label>الاسم (عربي)</label><input type="text" id="ept-name" value="${name}"></div>
+    <div class="form-group"><label>الاسم (إنجليزي)</label><input type="text" id="ept-name-en" placeholder="e.g. Apartment"></div>
+    <div class="form-group"><label>الوصف</label><textarea id="ept-desc">${description}</textarea></div>
+    <div class="form-group"><label>التفاصيل / المميزات</label><textarea id="ept-details" placeholder="تفاصيل إضافية..."></textarea></div>`,
+    async () => {
+      const body = {
+        name: document.getElementById('ept-name').value.trim(),
+        name_en: document.getElementById('ept-name-en').value.trim(),
+        description: document.getElementById('ept-desc').value.trim(),
+        details: document.getElementById('ept-details').value.trim(),
+      };
+      try {
+        await PUT(`/admin/property-types/${id}`, body);
+        toast('تم تحديث النوع ✅','success');
+        closeModal(); renderPropertyTypes();
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 function showAddPropertyTypeModal() {
   openModal('إضافة نوع عقار', `
@@ -2854,24 +3199,126 @@ async function deletePropertyType(id) {
 }
 
 /* ══════════════════════════════════════════════════════
-   PAGE: MONITORING
+   PAGE: MONITORING — FIXED with stats + system data
 ══════════════════════════════════════════════════════ */
 async function renderMonitoring() {
   const main = document.getElementById('main-content');
+
+  /* Render a nested object as rows */
+  const renderObj = (obj, depth=0) => {
+    if (typeof obj !== 'object' || !obj || Array.isArray(obj)) return '';
+    return Object.entries(obj).map(([k,v])=>{
+      const displayVal = typeof v === 'boolean'
+        ? (v ? '<span class="badge badge-green">نعم ✅</span>' : '<span class="badge badge-red">لا ❌</span>')
+        : (typeof v === 'object' ? '' : `<span>${v}</span>`);
+      return `<div class="insight-row" style="padding-right:${depth*12}px;${depth>0?'background:#FAFAF8;':''}">
+        <span class="insight-label" style="font-size:${13-depth}px">${k}</span>
+        <span class="insight-value">${displayVal}</span>
+      </div>
+      ${typeof v==='object' && v ? renderObj(v,depth+1):''}`;
+    }).join('');
+  };
+
+  /* Stat card helper */
+  const statCard = (icon, label, value, color='var(--gold)') =>
+    `<div style="background:#FFF;border:1px solid #E5D5B8;border-radius:12px;padding:20px;text-align:center;flex:1;min-width:140px">
+      <div style="font-size:28px;margin-bottom:8px">${icon}</div>
+      <div style="font-size:24px;font-weight:800;color:${color}">${value||'—'}</div>
+      <div style="font-size:12px;color:#888;margin-top:4px">${label}</div>
+    </div>`;
+
   try {
-    const data = await apiWithFallback(['/admin/monitoring/health','/admin/health','/admin/system/health']);
-    const render = (obj, depth=0) => {
-      if (typeof obj !== 'object' || !obj) return `<span>${obj}</span>`;
-      return Object.entries(obj).map(([k,v])=>`
-        <div class="insight-row" style="padding-right:${depth*12}px">
-          <span class="insight-label">${k}</span>
-          <span class="insight-value">${typeof v==='object'?'':v}</span>
-        </div>
-        ${typeof v==='object'?render(v,depth+1):''}`).join('');
-    };
-    main.innerHTML = pageHeader('مراقبة النظام','حالة الخادم وقاعدة البيانات.',
+    /* Fetch health + stats in parallel — use Promise.allSettled to avoid single-failure abort */
+    const [healthRes, statsRes, sysRes] = await Promise.allSettled([
+      apiWithFallback([
+        '/admin/monitoring/health',
+        '/admin/health',
+        '/admin/system/health',
+        '/admin/ping',
+      ]),
+      apiWithFallback([
+        '/admin/monitoring/stats',
+        '/admin/stats',
+        '/admin/dashboard/stats',
+        '/admin/statistics',
+        '/admin/system/stats',
+      ]),
+      apiWithFallback([
+        '/admin/monitoring/system',
+        '/admin/system',
+        '/admin/system/info',
+        '/admin/server/info',
+      ]),
+    ]);
+
+    const health = healthRes.status === 'fulfilled' ? healthRes.value : {};
+    const stats  = statsRes.status  === 'fulfilled' ? statsRes.value  : {};
+    const sys    = sysRes.status    === 'fulfilled' ? sysRes.value    : {};
+
+    /* Extract common stat values from any response shape */
+    const getv = (obj, ...keys) => { for (const k of keys) { if (obj[k] !== undefined) return obj[k]; } return null; };
+    const totalUsers  = getv(stats,'total_users','users','users_count','totalUsers');
+    const totalProps  = getv(stats,'total_properties','properties','properties_count','totalProperties');
+    const totalSubs   = getv(stats,'total_subscriptions','subscriptions','subscriptions_count','totalSubscriptions');
+    const totalRev    = getv(stats,'total_revenue','revenue','total_income','totalRevenue');
+    const dbStatus    = getv(health,'database','db','database_status','db_status') || getv(health,'services','status');
+    const serverUp    = getv(health,'uptime','server_uptime','up') || getv(sys,'uptime','server_uptime');
+    const memUsage    = getv(sys,'memory','memory_usage','ram') || getv(health,'memory');
+    const cpuUsage    = getv(sys,'cpu','cpu_usage') || getv(health,'cpu');
+    const nodeVer     = getv(sys,'node_version','nodeVersion','node') || getv(health,'node_version');
+    const environment = getv(sys,'env','environment','NODE_ENV') || getv(health,'env','environment');
+
+    const dbBadge = dbStatus
+      ? (String(dbStatus).toLowerCase().includes('connect')||String(dbStatus).toLowerCase()==='true'||String(dbStatus).toLowerCase()==='ok'||String(dbStatus).toLowerCase()==='healthy'
+          ? '<span class="badge badge-green">متصل ✅</span>'
+          : `<span class="badge badge-red">${dbStatus}</span>`)
+      : '<span class="badge badge-gray">—</span>';
+
+    const hasAnyHealth  = Object.keys(health).length  > 0;
+    const hasAnyStats   = Object.keys(stats).length   > 0;
+    const hasAnySys     = Object.keys(sys).length     > 0;
+
+    main.innerHTML = pageHeader('مراقبة النظام','حالة الخادم ومعلومات الإحصائيات الكاملة.',
       `<button class="btn-white" onclick="renderMonitoring()">🔄 تحديث</button>`) +
-      `<div class="card"><h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚡ حالة النظام</h3>${render(data)}</div>`;
+
+      /* Stat Cards */
+      `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        ${statCard('👥','إجمالي المستخدمين', totalUsers!==null?fmtNum(totalUsers):'—')}
+        ${statCard('🏠','إجمالي العقارات', totalProps!==null?fmtNum(totalProps):'—')}
+        ${statCard('⭐','الاشتراكات', totalSubs!==null?fmtNum(totalSubs):'—')}
+        ${statCard('💰','الإيرادات', totalRev!==null?fmtNum(totalRev):'—','#22c55e')}
+      </div>` +
+
+      /* System Quick Info */
+      `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <div class="card" style="flex:1;min-width:220px">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🔌 حالة الخادم</h3>
+          <div class="insight-row"><span class="insight-label">قاعدة البيانات</span><span>${dbBadge}</span></div>
+          <div class="insight-row"><span class="insight-label">وقت التشغيل</span><span class="insight-value">${serverUp||'—'}</span></div>
+          <div class="insight-row"><span class="insight-label">بيئة العمل</span><span class="insight-value">${environment||'—'}</span></div>
+          <div class="insight-row"><span class="insight-label">إصدار Node.js</span><span class="insight-value">${nodeVer||'—'}</span></div>
+          ${memUsage ? `<div class="insight-row"><span class="insight-label">الذاكرة المستخدمة</span><span class="insight-value">${typeof memUsage==='object'?JSON.stringify(memUsage):memUsage}</span></div>` : ''}
+          ${cpuUsage ? `<div class="insight-row"><span class="insight-label">استخدام المعالج</span><span class="insight-value">${typeof cpuUsage==='object'?JSON.stringify(cpuUsage):cpuUsage}</span></div>` : ''}
+        </div>
+      </div>` +
+
+      /* Full raw data */
+      (hasAnyHealth ? `<div class="card" style="margin-bottom:12px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">⚕️ Health Check (raw)</h3>
+        ${renderObj(health)}
+      </div>` : '') +
+      (hasAnyStats ? `<div class="card" style="margin-bottom:12px">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">📊 الإحصائيات (raw)</h3>
+        ${renderObj(stats)}
+      </div>` : '') +
+      (hasAnySys ? `<div class="card">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🖥️ معلومات النظام (raw)</h3>
+        ${renderObj(sys)}
+      </div>` : '') +
+      (!hasAnyHealth && !hasAnyStats && !hasAnySys
+        ? `<div class="card">${emptyHtml('📡','لا توجد بيانات مراقبة','تأكد من أن الخادم يدعم endpoints المراقبة')}</div>`
+        : '');
+
   } catch(e) {
     main.innerHTML = pageHeader('مراقبة النظام','') +
       `<div class="card">${errorHtml(e.message,'renderMonitoring')}</div>`;
@@ -3414,22 +3861,105 @@ async function editContentPage(id, title) {
 async function renderAppConfig() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/app-config','/admin/app-settings','/admin/config']);
-    const cfg = data.config || data.settings || data || {};
-    const rows = Object.entries(cfg).map(([k,v]) => `
-      <div class="insight-row">
-        <span class="insight-label">${k}</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="insight-value">${typeof v === 'boolean'
-            ? `<span class="badge ${v?'badge-green':'badge-red'}">${v?'مفعّل':'معطّل'}</span>`
-            : String(v).substring(0,60)}</span>
-          <button class="btn-action btn-view btn-sm" onclick="editAppConfigKey('${k}','${String(v).replace(/'/g,'')}',${typeof v === 'boolean'})">تعديل</button>
+    /* Try all possible config endpoints */
+    const data = await apiWithFallback([
+      '/admin/app-config',
+      '/admin/app-settings',
+      '/admin/config',
+      '/admin/settings',
+      '/admin/settings/app',
+      '/admin/config/app',
+      '/admin/config/settings',
+      '/admin/settings/all',
+    ]);
+    const cfg = data.config || data.app_config || data.settings || data.app_settings || data || {};
+
+    const APP_CONFIG_LABELS = {
+      /* Identity */
+      app_name: 'اسم التطبيق', name: 'الاسم',
+      app_name_en: 'اسم التطبيق (إنجليزي)',
+      /* Media */
+      logo: 'الشعار', icon: 'الأيقونة', favicon: 'الـ Favicon',
+      splash_screen: 'شاشة البداية', splash_image: 'صورة البداية',
+      app_images: 'صور التطبيق', banner: 'البانر',
+      /* Colors */
+      primary_color: 'اللون الرئيسي', secondary_color: 'اللون الثانوي',
+      accent_color: 'لون التمييز', background_color: 'لون الخلفية',
+      /* Contact */
+      email: 'البريد الإلكتروني', support_email: 'بريد الدعم',
+      phone: 'رقم الهاتف', support_phone: 'هاتف الدعم',
+      whatsapp: 'واتساب', whatsapp_number: 'رقم واتساب',
+      /* Social */
+      facebook: 'فيسبوك', twitter: 'تويتر / X', instagram: 'انستغرام',
+      youtube: 'يوتيوب', linkedin: 'لينكدإن', tiktok: 'تيك توك',
+      snapchat: 'سناب شات', telegram: 'تيليغرام',
+      /* Links */
+      website: 'رابط الموقع',
+      play_store_url: 'رابط Google Play', app_store_url: 'رابط App Store',
+      /* Content */
+      privacy_policy: 'سياسة الخصوصية',
+      terms_conditions: 'الشروط والأحكام',
+      terms_and_conditions: 'الشروط والأحكام',
+      about_us: 'من نحن', contact_us: 'تواصل معنا',
+      /* Settings */
+      notifications_enabled: 'الإشعارات مفعّلة',
+      maintenance_mode: 'وضع الصيانة',
+      allow_registration: 'السماح بالتسجيل',
+      max_properties: 'الحد الأقصى للعقارات',
+      featured_days: 'أيام التميّز الافتراضية',
+      currency: 'العملة',
+    };
+
+    const renderCfgValue = (k, v) => {
+      if (v === null || v === undefined) return '<span style="color:#aaa">—</span>';
+      if (typeof v === 'boolean') return v
+        ? '<span class="badge badge-green">مفعّل ✅</span>'
+        : '<span class="badge badge-red">معطّل ❌</span>';
+      const s = String(v);
+      if (!s.trim()) return '<span style="color:#aaa">—</span>';
+      /* Color swatch */
+      if (k.includes('color') && /^#[0-9a-fA-F]{3,6}$/.test(s.trim())) {
+        return `<span style="display:inline-flex;align-items:center;gap:6px">
+          <span style="width:20px;height:20px;border-radius:50%;background:${s};border:1px solid #ddd;display:inline-block"></span>
+          <code>${s}</code></span>`;
+      }
+      /* Image thumbnail */
+      const isImg = s.startsWith('http') && /\.(jpg|jpeg|png|webp|gif|svg)/i.test(s);
+      if (isImg) return `<div style="display:flex;align-items:center;gap:8px">
+        <img src="${s}" style="height:36px;max-width:80px;border-radius:6px;object-fit:cover;cursor:pointer;border:1px solid #ddd"
+             onclick="openImageModal(['${s}'])">
+        <a href="${s}" target="_blank" style="color:var(--gold);font-size:11px">رابط</a>
+      </div>`;
+      /* URL */
+      if (s.startsWith('http')) return `<a href="${s}" target="_blank" style="color:var(--gold);font-size:12px;word-break:break-all">${s.substring(0,50)}${s.length>50?'...':''}</a>`;
+      /* Long text */
+      if (s.length > 120) return `<details><summary style="cursor:pointer;color:var(--gold);font-size:12px">عرض النص (${s.length} حرف)</summary><p style="font-size:12px;margin-top:8px;max-height:200px;overflow-y:auto">${s}</p></details>`;
+      return `<span>${s}</span>`;
+    };
+
+    const entries = Object.entries(cfg);
+    const rows = entries.map(([k, v]) => {
+      const label = APP_CONFIG_LABELS[k] || k;
+      const isBool = typeof v === 'boolean';
+      return `<div class="insight-row" style="align-items:flex-start;padding:12px 0">
+        <span class="insight-label" style="min-width:180px;font-weight:600">${label}</span>
+        <div style="flex:1;display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+          <div style="flex:1;max-width:360px">${renderCfgValue(k,v)}</div>
+          <button class="btn-action btn-view btn-sm" onclick="editAppConfigKey('${k}','${String(v||'').replace(/'/g,"\'")}',${isBool})">تعديل</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
+
     main.innerHTML = pageHeader('إعدادات التطبيق','إعدادات وتكوين التطبيق العامة.',
       `<button class="btn-white" onclick="renderAppConfig()">🔄 تحديث</button>`) +
-      `<div class="card"><h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚙️ إعدادات النظام</h3>
-        ${rows || '<p style="color:#6B7280;text-align:center;padding:20px">لا توجد إعدادات</p>'}
+      `<div class="card">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">⚙️ إعدادات التطبيق الكاملة</h3>
+        ${entries.length
+          ? rows
+          : '<p style="color:#6B7280;text-align:center;padding:24px">لا توجد إعدادات متاحة حتى الآن</p>'}
+        ${entries.length
+          ? `<p style="padding:12px 0 0;color:#6B7280;font-size:12px">إجمالي: ${entries.length} إعداد</p>`
+          : ''}
       </div>`;
   } catch(e) {
     main.innerHTML = pageHeader('إعدادات التطبيق','') + `<div class="card">${errorHtml(e.message,'renderAppConfig')}</div>`;
@@ -3437,27 +3967,32 @@ async function renderAppConfig() {
 }
 function editAppConfigKey(key, currentValue, isBool) {
   const inputHtml = isBool
-    ? `<select id="cfg-val">
-        <option value="true" ${currentValue==='true'?'selected':''}>مفعّل</option>
-        <option value="false" ${currentValue!=='true'?'selected':''}>معطّل</option>
+    ? `<select id="cfg-val" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px">
+        <option value="true"  ${currentValue==='true' ?'selected':''}>مفعّل ✅</option>
+        <option value="false" ${currentValue!=='true'?'selected':''}>معطّل ❌</option>
       </select>`
-    : `<input type="text" id="cfg-val" value="${currentValue}">`;
+    : `<input type="text" id="cfg-val" value="${currentValue.replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px">`;
   openModal(`تعديل: ${key}`, `
-    <div class="form-group"><label>${key}</label>${inputHtml}</div>`,
+    <div class="form-group"><label style="font-weight:600">${key}</label>${inputHtml}</div>`,
     async () => {
       let val = document.getElementById('cfg-val').value;
       if (isBool) val = val === 'true';
-      try {
-        await PATCH('/admin/app-config', { [key]: val });
-        toast('تم حفظ الإعداد ✅','success');
-        closeModal(); renderAppConfig();
-      } catch(e) {
+      const endpoints = ['/admin/app-config','/admin/app-settings','/admin/settings','/admin/config'];
+      for (const ep of endpoints) {
         try {
-          await PUT('/admin/app-config', { [key]: val });
+          await PATCH(ep, { [key]: val });
           toast('تم حفظ الإعداد ✅','success');
-          closeModal(); renderAppConfig();
-        } catch(e2) { toast(e2.message,'error'); }
+          closeModal(); renderAppConfig(); return;
+        } catch(_) {}
       }
+      for (const ep of endpoints) {
+        try {
+          await PUT(ep, { [key]: val });
+          toast('تم حفظ الإعداد ✅','success');
+          closeModal(); renderAppConfig(); return;
+        } catch(_) {}
+      }
+      toast('تعذر حفظ الإعداد','error');
     }
   );
 }
