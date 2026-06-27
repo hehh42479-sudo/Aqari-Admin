@@ -1812,3 +1812,269 @@ img, video, canvas, svg {
     padding: 0;
   }
 }
+
+/* ── Property search bar ──────────────────────────────── */
+.prop-search-bar {
+  padding: 0 0 12px;
+}
+
+.prop-search-input:focus {
+  outline: none;
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 3px var(--gold-faint);
+}
+
+/* ── Property featured badge overlay ──────────────────── */
+.prop-featured-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--gold);
+  color: var(--white);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ════════════════════════════════════════════════════
+   بطاقات العقارات — Property Cards Grid
+════════════════════════════════════════════════════ */
+.prop-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.prop-card {
+  background: var(--white);
+  border: 1.5px solid var(--beige-mid);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.prop-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* صورة البطاقة */
+.prop-card-img-wrap {
+  position: relative;
+  height: 180px;
+  background: var(--beige-light);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.prop-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.prop-card-img-wrap:hover .prop-card-img {
+  transform: scale(1.03);
+}
+
+.prop-no-img {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 48px;
+  background: var(--beige-light);
+  color: var(--brown-mid);
+}
+
+.prop-img-count {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  backdrop-filter: blur(4px);
+}
+
+/* محتوى البطاقة */
+.prop-card-body {
+  padding: 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prop-card-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--brown-dark);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.prop-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prop-meta-item {
+  font-size: 12px;
+  color: var(--brown-mid);
+  background: var(--beige-light);
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.prop-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--beige-mid);
+}
+
+.prop-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.prop-card-actions .btn-action {
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+  justify-content: center;
+}
+
+/* على الهاتف: عمود واحد */
+@media (max-width: 600px) {
+  .prop-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .prop-card-img-wrap {
+    height: 200px;
+  }
+  .prop-card-actions .btn-action {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   معرض صور تفاصيل العقار
+═══════════════════════════════════════════════════ */
+.prop-detail-gallery {
+  margin-bottom: 16px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #111;
+}
+
+.prop-gallery-main {
+  position: relative;
+}
+
+.prop-gallery-main-img {
+  width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+  background: #111;
+  display: block;
+}
+
+.prop-gallery-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+}
+
+.prop-gallery-nav span {
+  color: #fff;
+  font-size: 13px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.prop-gallery-thumbs {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: #222;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prop-gallery-thumb {
+  width: 56px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  flex-shrink: 0;
+  transition: opacity 0.2s, border 0.2s;
+  border: 2px solid transparent;
+}
+
+.prop-gallery-thumb.active,
+.prop-gallery-thumb:hover {
+  opacity: 1;
+  border-color: var(--gold);
+}
+
+/* تفاصيل العقار */
+.detail-desc {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--beige-light);
+  border-radius: 10px;
+  line-height: 1.7;
+  color: #555;
+  font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════════════
+   Lazy Image Loading
+═══════════════════════════════════════════════════ */
+.lazy-img {
+  background: var(--beige-light);
+  transition: opacity 0.3s;
+}
+
+.lazy-img[src*="svg"] {
+  opacity: 0;
+}
+
+.img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--beige-light);
+  font-size: 32px;
+  color: var(--brown-mid);
+  border-radius: 8px;
+  min-height: 60px;
+}

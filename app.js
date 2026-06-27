@@ -75,6 +75,71 @@ async function apiWithFallback(endpoints) {
   throw new Error('تعذر الوصول إلى البيانات. تحقق من الاتصال بالشبكة.');
 }
 
+/* ── In-memory cache to prevent duplicate API calls ──── */
+const _cache = new Map();
+const _cacheTime = new Map();
+const CACHE_TTL = 30000; // 30 ثانية
+
+async function cachedApi(key, fetchFn) {
+  const now = Date.now();
+  if (_cache.has(key) && (now - (_cacheTime.get(key) || 0)) < CACHE_TTL) {
+    return _cache.get(key);
+  }
+  const data = await fetchFn();
+  _cache.set(key, data);
+  _cacheTime.set(key, now);
+  return data;
+}
+
+function clearCache(prefix) {
+  if (prefix) {
+    for (const k of _cache.keys()) {
+      if (k.startsWith(prefix)) { _cache.delete(k); _cacheTime.delete(k); }
+    }
+  } else {
+    _cache.clear(); _cacheTime.clear();
+  }
+}
+
+/* ── Lazy Image loading helper ───────────────────────── */
+function lazyImg(src, cls = '', style = '', fallback = '') {
+  const ph = fallback || '🏠';
+  if (!src) return `<div class="img-placeholder">${ph}</div>`;
+  return `<img 
+    data-src="${src}" 
+    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60'%3E%3C/svg%3E"
+    class="lazy-img ${cls}" 
+    style="${style}"
+    onerror="this.onerror=null;this.src='';this.outerHTML='<div class=\'img-placeholder\'>${ph}</div>'"
+    alt="">`;
+}
+
+/* Initialize Intersection Observer for lazy loading */
+function initLazyLoad() {
+  if (window._lazyObserver) return;
+  window._lazyObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        const src = img.dataset.src;
+        if (src) {
+          img.src = src;
+          img.removeAttribute('data-src');
+          img.classList.remove('lazy-img');
+          window._lazyObserver.unobserve(img);
+        }
+      }
+    });
+  }, { rootMargin: '100px' });
+}
+
+function observeLazyImages() {
+  initLazyLoad();
+  document.querySelectorAll('img[data-src]').forEach(img => {
+    window._lazyObserver.observe(img);
+  });
+}
+
 /* ── Toast ───────────────────────────────────────────── */
 function toast(msg, type = '') {
   let el = document.getElementById('toast-el');
@@ -269,7 +334,13 @@ function initAdminPanel() {
 
 /* ── Router ──────────────────────────────────────────── */
 let currentRoute = '';
+let _navDebounce = null;
 function navigateTo(route) {
+  /* debounce rapid clicks */
+  if (_navDebounce) clearTimeout(_navDebounce);
+  _navDebounce = setTimeout(() => _doNavigate(route), 50);
+}
+function _doNavigate(route) {
   currentRoute = route;
   document.querySelectorAll('.nav-item').forEach(el => {
     const isActive = el.dataset.route === route;
@@ -314,11 +385,14 @@ function navigateTo(route) {
   };
   if (pages[route]) {
     main.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>جاري التحميل...</p></div>`;
-    pages[route]();
+    Promise.resolve(pages[route]()).then(() => observeLazyImages());
   } else {
     main.innerHTML = pageHeader('الصفحة غير موجودة', '') +
       `<div class="card"><p style="text-align:center;padding:40px;color:#6B7280">لم يتم العثور على الصفحة المطلوبة.</p></div>`;
   }
+  /* Scroll to top on navigation */
+  main.scrollTop = 0;
+  window.scrollTo(0,0);
 }
 
 /* ── Helpers ─────────────────────────────────────────── */
@@ -420,13 +494,13 @@ function imgNav(dir) {
 async function renderDashboard() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback([
+    const data = await cachedApi('dashboard', () => apiWithFallback([
       '/admin/stats',
       '/admin/statistics',
       '/admin/dashboard',
       '/admin/dashboard/stats',
       '/admin/overview',
-    ]);
+    ]));
     const s = data;
     const cards = [
       { icon:'🏠', label:'إجمالي العقارات',  value: fmtNum(s.totalProperties||s.total_properties),      color:'#C59D50' },
@@ -456,80 +530,136 @@ async function renderDashboard() {
 }
 
 /* ══════════════════════════════════════════════════════
-   PAGE: PROPERTIES — FIXED with images, detail view, full actions
+   PAGE: PROPERTIES — بطاقات على الهاتف + جدول على الكمبيوتر
 ══════════════════════════════════════════════════════ */
-async function renderProperties() {
+let _allProperties = []; // للبحث والفلاتر
+
+async function renderProperties(filter = '') {
   const main = document.getElementById('main-content');
   const perm = Session.hasPerm('manage_properties');
-  try {
-    const data = await apiWithFallback([
-      '/admin/properties',
-      '/admin/properties?status=all',
-      '/admin/property/list',
-      '/properties',
-    ]);
-    let rows = data.properties || data.data || data || [];
-    if (!Array.isArray(rows)) rows = [];
 
-    const thead = `<tr>
-      <th>الصورة</th><th>العنوان</th><th>النوع</th><th>المدينة</th>
-      <th>السعر</th><th>المالك</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th>
-    </tr>`;
-
-    const tbody = rows.length
-      ? rows.map(p => {
-          const imgs = p.images || p.photos || [];
-          const imgArr = Array.isArray(imgs)
-            ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
-            : [];
-          const firstImg = imgArr[0] || p.image || p.thumbnail || p.cover_image || p.main_image || '';
-          const thumbHtml = firstImg
-            ? `<img src="${firstImg}" alt="صورة" class="prop-thumb"
-                onclick="openImageModal(${JSON.stringify(imgArr.length ? imgArr : [firstImg]).replace(/"/g,"'")})"
-                style="cursor:pointer"
-                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-               <div class="prop-thumb-empty" style="display:none">🏠</div>`
-            : `<div class="prop-thumb-empty">🏠</div>`;
-          const isFeatured = p.is_featured || p.featured || p.status === 'featured';
-          const ownerName = p.owner_name || p.user_name || p.office_name ||
-            (p.owner ? (p.owner.name || p.owner.full_name || '') : '') ||
-            (p.user  ? (p.user.name  || p.user.full_name  || '') : '') || '—';
-          const actBtns = perm ? `
-            <div class="action-btns-wrap">
-              <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">تفاصيل</button>
-              <button class="btn-action btn-approve btn-sm" onclick="approveProperty(${p.id})">قبول</button>
-              <button class="btn-action btn-reject btn-sm" onclick="rejectProperty(${p.id})">رفض</button>
-              ${isFeatured
-                ? `<button class="btn-action btn-warn btn-sm" onclick="unfeatureProperty(${p.id})">إلغاء التمييز</button>`
-                : `<button class="btn-action btn-gold btn-sm" onclick="featureProperty(${p.id})">تمييز ⭐</button>`}
-              <button class="btn-action btn-delete btn-sm" onclick="deleteProperty(${p.id})">حذف</button>
-            </div>` : '—';
-          return `<tr>
-            <td data-label="الصورة">${thumbHtml}</td>
-            <td data-label="العنوان"><strong>${p.title||p.property_type||'عقار'}</strong></td>
-            <td data-label="النوع">${p.property_type||'—'}<br><small style="color:#888">${p.operation_type||p.offer_type||''}</small></td>
-            <td data-label="المدينة">${p.city||p.city_name||'—'}</td>
-            <td data-label="السعر">${fmtNum(p.price)}${p.currency?' '+p.currency:''}</td>
-            <td data-label="المالك">${ownerName}</td>
-            <td data-label="الحالة">${badgeForStatus(p.status)}</td>
-            <td data-label="التاريخ">${fmtDate(p.created_at)}</td>
-            <td data-label="الإجراءات" class="actions-cell">${actBtns}</td>
-          </tr>`;
-        }).join('')
-      : `<tr><td colspan="9" class="empty-cell">${emptyHtml('🏠','لا توجد عقارات')}</td></tr>`;
-
+  /* إذا كان هناك فلتر فقط، لا نعيد تحميل الـ API */
+  if (!filter && _allProperties.length === 0) {
     main.innerHTML = pageHeader('العقارات','إدارة ومراجعة جميع العقارات.',
-      `<button class="btn-white" onclick="renderProperties()">🔄 تحديث</button>`) +
-      `<div class="card">
-        <div class="table-container">
-          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-        </div>
-        <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${rows.length} عقار</p>
+      _buildPropActions(perm)) +
+      `<div class="card">${loadingHtml()}</div>`;
+  }
+
+  try {
+    if (!filter || _allProperties.length === 0) {
+      const data = await cachedApi('prop-list', () => apiWithFallback([
+        '/admin/properties',
+        '/admin/properties?status=all',
+        '/admin/property/list',
+      ]));
+      _allProperties = data.properties || data.data || data || [];
+      if (!Array.isArray(_allProperties)) _allProperties = [];
+    }
+
+    let rows = _allProperties;
+    if (filter) {
+      const q = filter.toLowerCase();
+      rows = _allProperties.filter(p =>
+        (p.title||'').toLowerCase().includes(q) ||
+        (p.city||p.city_name||'').toLowerCase().includes(q) ||
+        (p.owner_name||p.user_name||p.office_name||'').toLowerCase().includes(q) ||
+        (p.property_type||'').toLowerCase().includes(q) ||
+        (p.status||'').toLowerCase().includes(q)
+      );
+    }
+
+    const cards = rows.map(p => _buildPropCard(p, perm)).join('');
+
+    main.innerHTML = pageHeader('العقارات','إدارة ومراجعة جميع العقارات.', _buildPropActions(perm)) +
+      `<div class="prop-search-bar">
+        <input type="text" class="prop-search-input" placeholder="🔍 ابحث بالعنوان أو المدينة أو المالك..." 
+          value="${filter}" 
+          oninput="_propSearchDebounce(this.value)"
+          style="width:100%;padding:12px 16px;border:1.5px solid var(--beige-mid);border-radius:12px;font-family:inherit;font-size:15px">
+      </div>
+      <div class="card" style="margin-top:0">
+        ${rows.length
+          ? `<div class="prop-cards-grid">${cards}</div>
+             <p style="padding:12px 0 0;color:#6B7280;font-size:13px">
+               ${filter ? `نتائج البحث: ${rows.length} من أصل ${_allProperties.length}` : `إجمالي: ${rows.length} عقار`}
+             </p>`
+          : emptyHtml('🏠', filter ? 'لا نتائج مطابقة للبحث' : 'لا توجد عقارات', '')}
       </div>`;
+
+    observeLazyImages();
   } catch(e) {
     main.innerHTML = pageHeader('العقارات','') +
-      `<div class="card">${errorHtml(e.message,'renderProperties')}</div>`;
+      `<div class="card">${errorHtml(e.message,'renderProperties()')}</div>`;
   }
+}
+
+let _propSearchTimer = null;
+function _propSearchDebounce(val) {
+  clearTimeout(_propSearchTimer);
+  _propSearchTimer = setTimeout(() => renderProperties(val), 300);
+}
+
+function _buildPropActions(perm) {
+  return `<button class="btn-white" onclick="clearCache('prop');_allProperties=[];renderProperties()">🔄 تحديث</button>
+    <select onchange="renderProperties()" id="prop-status-filter" style="padding:8px 12px;border:1.5px solid var(--beige-mid);border-radius:10px;font-family:inherit;font-size:13px">
+      <option value="">كل الحالات</option>
+      <option value="pending">معلق</option>
+      <option value="approved">مقبول</option>
+      <option value="rejected">مرفوض</option>
+      <option value="featured">مميز</option>
+    </select>`;
+}
+
+function _buildPropCard(p, perm) {
+  const imgs = p.images || p.photos || [];
+  const imgArr = Array.isArray(imgs)
+    ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
+    : [];
+  const firstImg = imgArr[0] || p.image || p.thumbnail || p.cover_image || p.main_image || '';
+  const isFeatured = p.is_featured || p.featured || p.status === 'featured';
+  const ownerName = p.owner_name || p.user_name || p.office_name ||
+    (p.owner ? (p.owner.name || p.owner.full_name || '') : '') ||
+    (p.user  ? (p.user.name  || p.user.full_name  || '') : '') || '—';
+
+  const imgHtml = firstImg
+    ? `<div class="prop-card-img-wrap" onclick="openImageModal(${JSON.stringify(imgArr.length?imgArr:[firstImg]).replace(/"/g,"'")})">
+         <img data-src="${firstImg}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
+           class="lazy-img prop-card-img"
+           onerror="this.onerror=null;this.style.display='none';this.parentElement.querySelector('.prop-no-img').style.display='flex'">
+         <div class="prop-no-img" style="display:none">🏠</div>
+         ${imgArr.length>1?`<span class="prop-img-count">📷 ${imgArr.length} صور</span>`:''}
+         ${isFeatured?`<span class="prop-featured-badge">⭐ مميز</span>`:''}
+       </div>`
+    : `<div class="prop-card-img-wrap"><div class="prop-no-img">🏠</div>${isFeatured?'<span class="prop-featured-badge">⭐ مميز</span>':''}</div>`;
+
+  const actionBtns = perm ? `
+    <div class="prop-card-actions">
+      <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">📋 تفاصيل</button>
+      <button class="btn-action btn-approve btn-sm" onclick="approveProperty(${p.id})">✅ قبول</button>
+      <button class="btn-action btn-reject btn-sm" onclick="rejectProperty(${p.id})">❌ رفض</button>
+      ${isFeatured
+        ? `<button class="btn-action btn-warn btn-sm" onclick="unfeatureProperty(${p.id})">إلغاء التمييز</button>`
+        : `<button class="btn-action btn-gold btn-sm" onclick="featureProperty(${p.id})">⭐ تمييز</button>`}
+      <button class="btn-action btn-delete btn-sm" onclick="deleteProperty(${p.id})">🗑️ حذف</button>
+    </div>` : '';
+
+  return `<div class="prop-card">
+    ${imgHtml}
+    <div class="prop-card-body">
+      <div class="prop-card-title">${p.title||p.property_type||'عقار غير معنون'}</div>
+      <div class="prop-card-meta">
+        <span class="prop-meta-item">🏗️ ${p.property_type||'—'}</span>
+        <span class="prop-meta-item">📍 ${p.city||p.city_name||'—'}</span>
+        <span class="prop-meta-item">💰 ${fmtNum(p.price)}${p.currency?' '+p.currency:''}</span>
+        <span class="prop-meta-item">👤 ${ownerName}</span>
+      </div>
+      <div class="prop-card-footer">
+        ${badgeForStatus(p.status)}
+        <span style="color:#888;font-size:12px">${fmtDate(p.created_at)}</span>
+      </div>
+      ${actionBtns}
+    </div>
+  </div>`;
 }
 
 async function viewPropertyDetail(id) {
@@ -540,57 +670,119 @@ async function viewPropertyDetail(id) {
     const imgList = Array.isArray(imgs)
       ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
       : [];
-    const galleryHtml = imgList.length
-      ? `<div class="img-gallery">
-          ${imgList.map((u,i) => `<img src="${u}" class="gallery-img" onclick="openImageModal(${JSON.stringify(imgList).replace(/"/g,"'")})" alt="صورة ${i+1}">`).join('')}
-        </div>`
-      : '<p style="color:#888;text-align:center;padding:12px">لا توجد صور لهذا العقار</p>';
 
-    openModal(`تفاصيل العقار #${id}`, `
+    /* معرض الصور مع تنقل سابق/تالي بارز */
+    const galleryHtml = imgList.length
+      ? `<div class="prop-detail-gallery">
+          <div class="prop-gallery-main" id="pgm">
+            <img src="${imgList[0]}" id="pgm-img" class="prop-gallery-main-img"
+              onclick="openImageModal(${JSON.stringify(imgList).replace(/"/g,"'")})"
+              onerror="this.onerror=null;this.src='';this.parentElement.innerHTML='<div style=\'padding:40px;text-align:center;color:#888\'>🏠 لا توجد صورة</div>'"
+              style="cursor:zoom-in">
+            <div class="prop-gallery-nav">
+              <button class="btn-action btn-view btn-sm" id="pgm-prev" onclick="propGalleryNav(-1)" disabled>❮</button>
+              <span id="pgm-count">1 / ${imgList.length}</span>
+              <button class="btn-action btn-approve btn-sm" id="pgm-next" onclick="propGalleryNav(1)" ${imgList.length<=1?'disabled':''}>❯</button>
+            </div>
+          </div>
+          ${imgList.length>1?`<div class="prop-gallery-thumbs">
+            ${imgList.map((u,i)=>`<img src="${u}" class="prop-gallery-thumb ${i===0?'active':''}" 
+              onclick="propGallerySet(${i})"
+              onerror="this.style.display='none'">`).join('')}
+          </div>`:''}
+        </div>`
+      : '<div style="text-align:center;padding:24px;color:#888;background:#F9F5F0;border-radius:12px;margin-bottom:16px">🏠 لا توجد صور لهذا العقار</div>';
+
+    const ownerName = p.owner_name||p.user_name||p.office_name||
+      (p.owner?(p.owner.name||p.owner.full_name||''):'') ||
+      (p.user?(p.user.name||p.user.full_name||''):'') || '—';
+
+    openWideModal(`تفاصيل العقار #${id}`, `
       ${galleryHtml}
-      <div class="detail-grid">
-        <div class="detail-item"><span class="detail-label">العنوان</span><span class="detail-val">${p.title||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">النوع</span><span class="detail-val">${p.property_type||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">العملية</span><span class="detail-val">${p.operation_type||p.offer_type||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">المدينة</span><span class="detail-val">${p.city||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">السعر</span><span class="detail-val">${fmtNum(p.price)} ${p.currency||''}</span></div>
-        <div class="detail-item"><span class="detail-label">المساحة</span><span class="detail-val">${p.area||p.size||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">الغرف</span><span class="detail-val">${p.rooms||p.bedrooms||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">الحالة</span><span class="detail-val">${badgeForStatus(p.status)}</span></div>
-        <div class="detail-item"><span class="detail-label">المالك</span><span class="detail-val">${p.owner_name||p.user_name||p.owner_id||'—'}</span></div>
-        <div class="detail-item"><span class="detail-label">تاريخ الإضافة</span><span class="detail-val">${fmtDate(p.created_at)}</span></div>
+      <div class="detail-grid" style="margin-top:16px">
+        <div class="detail-item"><span class="detail-label">📝 العنوان</span><span class="detail-val"><strong>${p.title||'—'}</strong></span></div>
+        <div class="detail-item"><span class="detail-label">🏗️ النوع</span><span class="detail-val">${p.property_type||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">🔄 العملية</span><span class="detail-val">${p.operation_type||p.offer_type||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">📍 المدينة</span><span class="detail-val">${p.city||p.city_name||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">💰 السعر</span><span class="detail-val" style="color:var(--gold);font-weight:800">${fmtNum(p.price)} ${p.currency||'ر.ي'}</span></div>
+        <div class="detail-item"><span class="detail-label">📐 المساحة</span><span class="detail-val">${p.area||p.size||'—'} ${p.area_unit||'م²'}</span></div>
+        <div class="detail-item"><span class="detail-label">🛏️ الغرف</span><span class="detail-val">${p.rooms||p.bedrooms||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">🚿 الحمامات</span><span class="detail-val">${p.bathrooms||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">🔆 الحالة</span><span class="detail-val">${badgeForStatus(p.status)}</span></div>
+        <div class="detail-item"><span class="detail-label">👤 المالك/المكتب</span><span class="detail-val">${ownerName}</span></div>
+        <div class="detail-item"><span class="detail-label">📞 الهاتف</span><span class="detail-val">${p.phone||p.owner_phone||p.user_phone||'—'}</span></div>
+        <div class="detail-item"><span class="detail-label">📅 تاريخ الإضافة</span><span class="detail-val">${fmtDate(p.created_at)}</span></div>
       </div>
-      ${p.description ? `<div style="margin-top:12px"><strong>الوصف:</strong><p style="margin-top:6px;line-height:1.7;color:#555">${p.description}</p></div>` : ''}
+      ${p.description?`<div class="detail-desc"><strong>📄 الوصف:</strong><p>${p.description}</p></div>`:''}
+      ${p.address||p.location?`<div class="detail-desc"><strong>📍 العنوان التفصيلي:</strong><p>${p.address||p.location}</p></div>`:''}
     `, null);
+    /* تخزين الصور للتنقل */
+    window._pgImages = imgList;
+    window._pgIdx = 0;
   } catch(e) {
     toast('تعذر تحميل تفاصيل العقار: ' + e.message, 'error');
   }
+}
+
+/* تنقل معرض صور تفاصيل العقار */
+function propGalleryNav(dir) {
+  const imgs = window._pgImages || [];
+  if (!imgs.length) return;
+  window._pgIdx = Math.max(0, Math.min(imgs.length-1, window._pgIdx + dir));
+  propGallerySet(window._pgIdx);
+}
+function propGallerySet(idx) {
+  const imgs = window._pgImages || [];
+  window._pgIdx = idx;
+  const mainImg = document.getElementById('pgm-img');
+  const count = document.getElementById('pgm-count');
+  const prev = document.getElementById('pgm-prev');
+  const next = document.getElementById('pgm-next');
+  if (mainImg) {
+    mainImg.src = imgs[idx] || '';
+    mainImg.onerror = () => { mainImg.style.display='none'; };
+  }
+  if (count) count.textContent = `${idx+1} / ${imgs.length}`;
+  if (prev) prev.disabled = idx === 0;
+  if (next) next.disabled = idx === imgs.length-1;
+  /* تحديث الـ thumbnails */
+  document.querySelectorAll('.prop-gallery-thumb').forEach((t,i)=>{
+    t.classList.toggle('active', i===idx);
+  });
 }
 
 /* ── Property Actions ─────────────────────────────────── */
 async function approveProperty(id) {
   if (!confirm('هل تريد الموافقة على هذا العقار؟')) return;
   try {
-    await PATCH(`/admin/properties/${id}/status`, { status:'approved' });
+    /* جرب PATCH أولاً ثم POST */
+    try { await PATCH(`/admin/properties/${id}/status`, { status:'approved' }); }
+    catch { await POST(`/admin/properties/${id}/approve`, {}); }
     toast('تمت الموافقة على العقار ✅','success');
-    renderProperties();
+    clearCache('prop'); closeModal(); renderProperties();
   } catch(e) { toast(e.message,'error'); }
 }
 async function rejectProperty(id) {
-  const reason = prompt('سبب الرفض (اختياري):');
-  if (reason === null) return;
-  try {
-    await PATCH(`/admin/properties/${id}/status`, { status:'rejected', rejection_reason:reason });
-    toast('تم رفض العقار','success');
-    renderProperties();
-  } catch(e) { toast(e.message,'error'); }
+  openModal('رفض العقار', `
+    <div class="form-group"><label>سبب الرفض</label>
+    <textarea id="rej-reason" rows="3" placeholder="اكتب سبب الرفض (اختياري)" style="width:100%;padding:10px;border:1px solid #E5D5B8;border-radius:8px;font-family:inherit"></textarea>
+    </div>`,
+    async () => {
+      const reason = document.getElementById('rej-reason').value.trim();
+      try {
+        await PATCH(`/admin/properties/${id}/status`, { status:'rejected', rejection_reason:reason });
+        toast('تم رفض العقار','success');
+        clearCache('prop'); closeModal(); renderProperties();
+      } catch(e) { toast(e.message,'error'); }
+    }
+  );
 }
 async function deleteProperty(id) {
-  if (!confirm('هل تريد حذف هذا العقار نهائياً؟')) return;
+  if (!confirm('هل تريد حذف هذا العقار نهائياً؟ لا يمكن التراجع!')) return;
   try {
     await DEL(`/admin/properties/${id}`);
     toast('تم حذف العقار','success');
-    renderProperties();
+    clearCache('prop'); closeModal(); renderProperties();
   } catch(e) { toast(e.message,'error'); }
 }
 async function featureProperty(id) {
@@ -598,12 +790,12 @@ async function featureProperty(id) {
   try {
     await PATCH(`/admin/properties/${id}/featured`, { featured: true });
     toast('تم تمييز العقار ⭐','success');
-    renderProperties();
+    clearCache('prop'); renderProperties();
   } catch(e) {
     try {
       await POST(`/admin/properties/${id}/feature`, {});
       toast('تم تمييز العقار ⭐','success');
-      renderProperties();
+      clearCache('prop'); renderProperties();
     } catch(e2) { toast(e2.message,'error'); }
   }
 }
@@ -612,7 +804,7 @@ async function unfeatureProperty(id) {
   try {
     await PATCH(`/admin/properties/${id}/featured`, { featured: false });
     toast('تم إلغاء التمييز','success');
-    renderProperties();
+    clearCache('prop'); clearCache('feat'); renderProperties();
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -622,48 +814,61 @@ async function unfeatureProperty(id) {
 async function renderFeaturedProperties() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback([
+    const data = await cachedApi('feat-props', () => apiWithFallback([
       '/admin/properties/featured',
       '/admin/featured-properties',
       '/admin/properties?featured=true',
-    ]);
+    ]));
     const list = data.properties || data.data || data || [];
-    const rows = Array.isArray(list) ? list.map(p => {
+    const items = Array.isArray(list) ? list : [];
+
+    const cards = items.map(p => {
       const imgs = p.images || p.photos || [];
-      const firstImg = Array.isArray(imgs) && imgs.length
-        ? (typeof imgs[0] === 'string' ? imgs[0] : imgs[0]?.url || '')
-        : (p.image || p.thumbnail || '');
-      const thumbHtml = firstImg
-        ? `<img src="${firstImg}" alt="صورة" class="prop-thumb" style="cursor:pointer" onclick="openImageModal(['${firstImg}'])">`
-        : `<div class="prop-thumb-empty">🏠</div>`;
-      return `<tr>
-        <td data-label="الصورة">${thumbHtml}</td>
-        <td data-label="#"><strong>#${p.id||'-'}</strong></td>
-        <td data-label="العقار">${p.title||p.name||'-'}</td>
-        <td data-label="المالك">${p.owner_name||p.user_name||'-'}</td>
-        <td data-label="السعر">${p.price?fmtNum(p.price):'-'} ${p.currency||''}</td>
-        <td data-label="الحالة"><span class="badge badge-purple">مميّز ⭐</span></td>
-        <td data-label="إجراء" class="actions-cell"><div class="action-btns">
-          <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">عرض</button>
-          <button class="btn-action btn-delete btn-sm" onclick="removeFeatured(${p.id})">إلغاء التمييز</button>
-        </div></td>
-      </tr>`;
-    }).join('') : '';
+      const imgArr = Array.isArray(imgs) ? imgs.map(i => typeof i==='string'?i:(i?.url||'')).filter(Boolean) : [];
+      const firstImg = imgArr[0] || p.image || p.thumbnail || '';
+      const imgHtml = firstImg
+        ? `<div class="prop-card-img-wrap" onclick="openImageModal(${JSON.stringify(imgArr.length?imgArr:[firstImg]).replace(/"/g,"'")})">
+             <img data-src="${firstImg}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" class="lazy-img prop-card-img"
+               onerror="this.onerror=null;this.style.display='none';this.parentElement.querySelector('.prop-no-img').style.display='flex'">
+             <div class="prop-no-img" style="display:none">🏠</div>
+           </div>`
+        : `<div class="prop-card-img-wrap"><div class="prop-no-img">🏠</div></div>`;
+      return `<div class="prop-card">
+        ${imgHtml}
+        <div class="prop-card-body">
+          <div class="prop-card-title">${p.title||p.name||'عقار مميز'}</div>
+          <div class="prop-card-meta">
+            <span class="prop-meta-item">👤 ${p.owner_name||p.user_name||'—'}</span>
+            <span class="prop-meta-item">💰 ${p.price?fmtNum(p.price)+' '+(p.currency||''):'—'}</span>
+          </div>
+          <div class="prop-card-footer">
+            <span class="badge badge-purple">مميّز ⭐</span>
+          </div>
+          <div class="prop-card-actions">
+            <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">📋 عرض التفاصيل</button>
+            <button class="btn-action btn-delete btn-sm" onclick="removeFeatured(${p.id})">إلغاء التمييز</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
     main.innerHTML = pageHeader('العقارات المميزة','العقارات المعروضة بشكل مميز في التطبيق.',
-      `<button class="btn-white" onclick="renderFeaturedProperties()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container">
-        <table class="data-table"><thead><tr><th>الصورة</th><th>#</th><th>العقار</th><th>المالك</th><th>السعر</th><th>الحالة</th><th>إجراء</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="7" class="empty-cell">${emptyHtml('⭐','لا توجد عقارات مميزة')}</td></tr>`}</tbody></table>
-      </div></div>`;
+      `<button class="btn-white" onclick="clearCache('feat');renderFeaturedProperties()">🔄 تحديث</button>`) +
+      `<div class="card">${items.length
+        ? `<div class="prop-cards-grid">${cards}</div>`
+        : emptyHtml('⭐','لا توجد عقارات مميزة','قم بتمييز عقار من صفحة العقارات')
+      }</div>`;
+    observeLazyImages();
   } catch(e) {
-    main.innerHTML = pageHeader('العقارات المميزة','') + `<div class="card">${errorHtml(e.message,'renderFeaturedProperties')}</div>`;
+    main.innerHTML = pageHeader('العقارات المميزة','') + `<div class="card">${errorHtml(e.message,'renderFeaturedProperties()')}</div>`;
   }
 }
 async function removeFeatured(id) {
   if (!confirm('إلغاء تمييز هذا العقار؟')) return;
   try {
     await PATCH(`/admin/properties/${id}/featured`, { featured: false });
-    toast('تم إلغاء التمييز','success'); renderFeaturedProperties();
+    toast('تم إلغاء التمييز','success');
+    clearCache('feat'); clearCache('prop'); renderFeaturedProperties();
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -791,13 +996,12 @@ async function renderUsersTable(type) {
   const main = document.getElementById('main-content');
   const cfg  = PAGE_CFG[type];
   try {
-    // Build fallback endpoint list based on type
     const epMap = {
       owners:  ['/admin/users?role=owner',  '/admin/owners',  '/admin/users?type=owner'],
       offices: ['/admin/users?role=office', '/admin/offices', '/admin/users?type=office'],
       seekers: ['/admin/users?role=seeker', '/admin/seekers', '/admin/users?type=seeker'],
     };
-    const data = await apiWithFallback(epMap[type] || [cfg.endpoint]);
+    const data = await cachedApi(`users-${type}`, () => apiWithFallback(epMap[type] || [cfg.endpoint]));
     let rows = data[type]||data.users||data.data||data||[];
     if (!Array.isArray(rows)) rows = [];
 
@@ -814,16 +1018,17 @@ async function renderUsersTable(type) {
       : `<tr><td colspan="${cfg.cols.length}" class="empty-cell">${emptyHtml('📂','لا توجد بيانات')}</td></tr>`;
 
     main.innerHTML = pageHeader(cfg.title, cfg.subtitle,
-      `<button class="btn-white" onclick="renderUsersTable('${type}')">🔄 تحديث</button>`) +
+      `<button class="btn-white" onclick="clearCache('users-${type}');renderUsersTable('${type}')">🔄 تحديث</button>`) +
       `<div class="card">
         <div class="table-container">
           <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
         </div>
         <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${rows.length} سجل</p>
       </div>`;
+    observeLazyImages();
   } catch(e) {
     main.innerHTML = pageHeader(cfg.title,'') +
-      `<div class="card">${errorHtml(e.message,`()=>renderUsersTable('${type}')`)}</div>`;
+      `<div class="card">${errorHtml(e.message,`renderUsersTable('${type}')`)}</div>`;
   }
 }
 
@@ -1033,7 +1238,7 @@ const ALL_PERMS = Object.keys(PERM_LABELS);
 async function renderSupervisors() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/supervisors','/admin/users?role=supervisor']);
+    const data = await cachedApi('supervisors', () => apiWithFallback(['/admin/supervisors','/admin/users?role=supervisor']));
     const rows = data.supervisors||data.users||data.data||[];
     const thead = `<tr><th>الاسم</th><th>الهاتف</th><th>عدد الصلاحيات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
@@ -1060,13 +1265,14 @@ async function renderSupervisors() {
         }).join('')
       : `<tr><td colspan="5" class="empty-cell">${emptyHtml('👮','لا يوجد مشرفون','أضف مشرفاً أولاً')}</td></tr>`;
     main.innerHTML = pageHeader('المشرفون والصلاحيات','إدارة حسابات المشرفين وصلاحياتهم.',
-      `<button class="btn-white" onclick="showAddSupervisorModal()">+ إضافة مشرف</button>`) +
+      `<button class="btn-white" onclick="showAddSupervisorModal()">+ إضافة مشرف</button>
+       <button class="btn-white" onclick="clearCache('supervisors');renderSupervisors()" style="margin-right:8px">🔄</button>`) +
       `<div class="card"><div class="table-container">
         <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('المشرفون والصلاحيات','') +
-      `<div class="card">${errorHtml(e.message,'renderSupervisors')}</div>`;
+      `<div class="card">${errorHtml(e.message,'renderSupervisors()')}</div>`;
   }
 }
 
@@ -1269,7 +1475,7 @@ function showAddSupervisorModal() {
           role: 'supervisor'
         });
         toast(`تم إضافة المشرف "${name}" بنجاح ✅`, 'success');
-        closeModal(); renderSupervisors();
+        clearCache('supervisors'); closeModal(); renderSupervisors();
       } catch(e) { toast(e.message || 'حدث خطأ أثناء الإضافة','error'); }
     }
   );
@@ -1309,7 +1515,7 @@ function editSupervisor(id, name, phone, currentPerms) {
       const save  = async (fn) => {
         await fn();
         toast('تم تحديث الصلاحيات ✅','success');
-        closeModal(); renderSupervisors();
+        clearCache('supervisors'); closeModal(); renderSupervisors();
       };
       try {
         await save(() => PUT(`/admin/supervisors/${id}/permissions`, { permissions: perms }));
@@ -1327,7 +1533,7 @@ async function deleteSupervisor(id) {
   try {
     await DEL(`/admin/supervisors/${id}`);
     toast('تم حذف المشرف','success');
-    renderSupervisors();
+    clearCache('supervisors'); renderSupervisors();
   } catch(e) { toast(e.message,'error'); }
 }
 
