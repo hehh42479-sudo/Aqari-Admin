@@ -117,6 +117,84 @@ function clearCache(prefix) {
   }
 }
 
+/* ── Media URL resolver (matches Flutter _resolveUrl) ───
+   Backend stores images as relative paths: /uploads/img.jpg
+   OR as stringified JSON: '[{"url":"/uploads/img.jpg","isMain":true}]'
+   This function normalises them to full URLs.
+   ─────────────────────────────────────────────────────── */
+const BACKEND_BASE = 'https://aqari-backend.onrender.com';
+
+function resolveMediaUrl(raw) {
+  if (!raw) return '';
+  let v = String(raw).trim();
+  if (!v || v === 'null' || v === 'undefined') return '';
+  /* Stringified JSON: '[{"url":"/uploads/...",...}]' or '["url"]' */
+  if (v.startsWith('[') || v.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const first = parsed[0];
+        v = (typeof first === 'string')
+          ? first
+          : (first?.url || first?.path || first?.uri || '');
+      } else if (parsed && typeof parsed === 'object') {
+        v = parsed.url || parsed.path || parsed.uri || '';
+      }
+    } catch (_) { /* not valid JSON, use as-is */ }
+  }
+  v = v.trim();
+  if (!v) return '';
+  /* Already absolute */
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith('//')) return 'https:' + v;
+  /* Relative path → prepend backend base */
+  return BACKEND_BASE + (v.startsWith('/') ? v : '/' + v);
+}
+
+/* Extract all image URLs from a property object —
+   handles arrays, stringified JSON, multiple field names */
+function extractPropImages(p) {
+  const listKeys = ['images', 'image_urls', 'photos', 'media', 'gallery'];
+  for (const key of listKeys) {
+    const raw = p[key];
+    if (Array.isArray(raw) && raw.length > 0) {
+      const urls = raw.map(i => {
+        if (typeof i === 'string') return resolveMediaUrl(i);
+        if (i && typeof i === 'object') return resolveMediaUrl(i.url || i.path || i.uri || '');
+        return '';
+      }).filter(Boolean);
+      if (urls.length) return urls;
+    }
+    /* Stringified JSON array */
+    if (typeof raw === 'string' && raw.trim()) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const urls = parsed.map(i => {
+            if (typeof i === 'string') return resolveMediaUrl(i);
+            if (i && typeof i === 'object') return resolveMediaUrl(i.url || i.path || i.uri || '');
+            return '';
+          }).filter(Boolean);
+          if (urls.length) return urls;
+        }
+      } catch (_) {}
+      /* Plain string path */
+      const resolved = resolveMediaUrl(raw);
+      if (resolved) return [resolved];
+    }
+  }
+  /* Single-image fallback fields */
+  const singleKeys = ['thumbnail', 'image', 'imageUrl', 'image_url', 'cover_image', 'main_image', 'photo', 'cover'];
+  for (const key of singleKeys) {
+    const v = p[key];
+    if (v && typeof v === 'string') {
+      const resolved = resolveMediaUrl(v);
+      if (resolved) return [resolved];
+    }
+  }
+  return [];
+}
+
 /* ── Lazy Image loading helper ───────────────────────── */
 function lazyImg(src, cls = '', style = '', fallback = '') {
   const ph = fallback || '🏠';
@@ -210,25 +288,57 @@ async function login() {
 
     /* ── extract role from all known response shapes ── */
     const userData = res.user || res.userData || res.data || {};
-    const role = userData.role || res.role || '';
+    /* Check all possible field names backend might use for the role.
+       Flutter admin_session_controller checks: ['role', 'userRole', 'type']
+       Backend may also use: user_type, account_type, user_role */
+    const rawRole = (
+      userData.role ||
+      userData.userRole ||
+      userData.user_role ||
+      userData.type ||
+      userData.user_type ||
+      userData.account_type ||
+      res.role ||
+      res.userRole ||
+      ''
+    );
+    const role = String(rawRole).toLowerCase().trim();
 
-    if (!['admin','super_admin','supervisor'].includes(role)) {
-      throw new Error('هذا الحساب لا يمتلك صلاحيات الإدارة. تأكد من أن رقم الهاتف صحيح وأن الحساب مصرح له.');
+    /* Map variant spellings → canonical role */
+    const ROLE_MAP = {
+      'supervisor': 'supervisor',
+      'admin':      'admin',
+      'super_admin':'super_admin',
+      'superadmin': 'super_admin',
+      'super-admin':'super_admin',
+    };
+    const canonicalRole = ROLE_MAP[role] || role;
+
+    if (!['admin','super_admin','supervisor'].includes(canonicalRole)) {
+      /* Debug: log full response so we can diagnose what the backend actually returns */
+      console.warn('[login] role check failed. rawRole:', rawRole,
+        '| userData keys:', Object.keys(userData),
+        '| res keys:', Object.keys(res));
+      throw new Error('هذا الحساب لا يمتلك صلاحية الدخول كمدير. تأكد من أن رقم الهاتف صحيح وأن الحساب مشرف أو مدير.');
     }
+    /* Use canonical role for the session */
+    const role_ = canonicalRole;
 
     const token = res.token || res.access_token || res.accessToken || userData.token || '';
+    if (!token) throw new Error('لم يصل رمز الجلسة من الخادم. حاول مرة أخرى.');
 
     /* ── extract permissions from all possible locations ── */
     const rawPerms = (
       userData.permissions ||
       userData.perms ||
+      userData.rolePermissions ||
       res.permissions ||
       res.perms ||
       []
     );
     const perms = Array.isArray(rawPerms) ? rawPerms : [];
 
-    Session.set(token, { ...userData, role, permissions: perms });
+    Session.set(token, { ...userData, role: role_, permissions: perms });
     initAdminPanel();
   } catch(e) {
     showLoginError(e.message || 'تعذر تسجيل الدخول');
@@ -688,11 +798,9 @@ function _filterPropsByStatus(statusVal) {
 }
 
 function _buildPropCard(p, perm) {
-  const imgs = p.images || p.photos || [];
-  const imgArr = Array.isArray(imgs)
-    ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
-    : [];
-  const firstImg = imgArr[0] || p.image || p.thumbnail || p.cover_image || p.main_image || '';
+  /* Use extractPropImages which handles relative URLs, stringified JSON, all field names */
+  const imgArr = extractPropImages(p);
+  const firstImg = imgArr[0] || '';
   const isFeatured = p.is_featured || p.featured || p.status === 'featured';
   const ownerName = p.owner_name || p.user_name || p.office_name ||
     (p.owner ? (p.owner.name || p.owner.full_name || '') : '') ||
@@ -743,10 +851,8 @@ async function viewPropertyDetail(id) {
   try {
     const data = await GET(`/admin/properties/${id}`);
     const p = data.property || data.data || data;
-    const imgs = p.images || p.photos || [];
-    const imgList = Array.isArray(imgs)
-      ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
-      : [];
+    /* Use extractPropImages to handle relative URLs + stringified JSON from backend */
+    const imgList = extractPropImages(p);
 
     /* معرض الصور مع تنقل سابق/تالي بارز */
     const galleryHtml = imgList.length
@@ -1696,13 +1802,7 @@ function showAddPackageModal() {
         await POST('/admin/packages', { name, name_en, price, currency, duration_days, max_properties, max_employees });
         toast('تمت إضافة الباقة ✅','success');
         closeModal(); renderPackages();
-      } catch(e) {
-        try {
-          await POST('/packages', { name, name_en, price, currency, duration_days, max_properties, max_employees });
-          toast('تمت إضافة الباقة ✅','success');
-          closeModal(); renderPackages();
-        } catch(e2) { toast(e2.message,'error'); }
-      }
+      } catch(e) { toast(e.message,'error'); }
     }
   );
 }
@@ -2607,7 +2707,7 @@ async function deletePropertyType(id) {
 async function renderMonitoring() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/monitoring/health','/admin/health','/admin/system/health','/health']);
+    const data = await apiWithFallback(['/admin/monitoring/health','/admin/health','/admin/system/health']);
     const render = (obj, depth=0) => {
       if (typeof obj !== 'object' || !obj) return `<span>${obj}</span>`;
       return Object.entries(obj).map(([k,v])=>`
@@ -2632,7 +2732,7 @@ async function renderMonitoring() {
 async function renderAds() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/ads','/ads']);
+    const data = await apiWithFallback(['/admin/ads']);
     const rows = data.ads||data.data||[];
     const arrRows = Array.isArray(rows) ? rows : [];
     const thead = `<tr><th>الصورة</th><th>العنوان</th><th>الرابط</th><th>الحالة</th><th>تاريخ الانتهاء</th><th>إجراءات</th></tr>`;
@@ -3216,7 +3316,7 @@ function editAppConfigKey(key, currentValue, isBool) {
 async function renderAppUpdates() {
   const main = document.getElementById('main-content');
   try {
-    const data = await apiWithFallback(['/admin/app-updates','/admin/updates','/app-updates']);
+    const data = await apiWithFallback(['/admin/app-updates','/admin/updates']);
     const list = data.updates || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(u => `<tr>
       <td data-label="#">${u.id||'-'}</td>
