@@ -1635,3 +1635,180 @@ td.actions-cell {
   .reports-grid { grid-template-columns: 1fr; gap: 12px; }
   .report-card { padding: 14px; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   SESSION E — COMPREHENSIVE MOBILE & UX IMPROVEMENTS
+   Added: Touch targets, better cards, prop images mobile
+═══════════════════════════════════════════════════════ */
+
+/* ── Touch-friendly minimum sizes ─────────────────────── */
+.btn-action, .btn-white, .btn-primary, .btn-gold {
+  min-height: 44px;
+  min-width: 44px;
+}
+.btn-sm {
+  min-height: 38px !important;
+  min-width: 38px !important;
+}
+@media (max-width: 480px) {
+  .btn-action, .btn-sm {
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+  }
+  .action-btns-wrap, .action-btns, .user-actions-menu {
+    gap: 6px !important;
+  }
+}
+
+/* ── Mobile property images ────────────────────────────── */
+@media (max-width: 768px) {
+  .prop-thumb {
+    width: 80px !important;
+    height: 60px !important;
+  }
+  .prop-thumb-empty {
+    width: 80px !important;
+    height: 60px !important;
+    font-size: 28px !important;
+  }
+  .user-thumb {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .user-thumb-empty {
+    width: 48px !important;
+    height: 48px !important;
+  }
+}
+
+/* ── Image gallery mobile ──────────────────────────────── */
+@media (max-width: 600px) {
+  .img-gallery {
+    gap: 6px;
+  }
+  .gallery-img {
+    width: calc(50% - 3px);
+    height: 100px;
+  }
+}
+
+/* ── Dropdown on mobile: full-width ───────────────────── */
+@media (max-width: 480px) {
+  .dropdown-wrap { position: static; }
+  .dropdown-menu {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    z-index: 1000;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: 0 -4px 30px rgba(58,35,15,.2);
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  .dropdown-menu button {
+    padding: 16px 20px;
+    font-size: 15px;
+    border-bottom: 1px solid var(--beige-mid);
+    min-height: 52px;
+  }
+}
+
+/* ── Data table: ensure no horizontal overflow ─────────── */
+@media (max-width: 768px) {
+  .data-table td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* Ensure images in cards don't break layout */
+  .data-table td img {
+    max-width: 100%;
+    height: auto;
+  }
+  /* Fix action buttons in card mode */
+  .data-table td.actions-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .data-table td .action-btns-wrap,
+  .data-table td .action-btns,
+  .data-table td .user-actions-menu {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+}
+
+/* ── Wide modal on mobile: use full height ─────────────── */
+@media (max-width: 768px) {
+  .modal-wide {
+    width: 100vw !important;
+    max-height: 96vh !important;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+  }
+}
+
+/* ── PWA: standalone mode fixes ─────────────────────────── */
+@media (display-mode: standalone) {
+  .mobile-topbar {
+    padding-top: max(44px, env(safe-area-inset-top));
+  }
+  .main-content {
+    padding-top: max(84px, calc(env(safe-area-inset-top) + 70px));
+    padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 20px));
+  }
+}
+
+/* ── Pagination / scroll helpers ──────────────────────── */
+.overflow-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Stats grid responsive ────────────────────────────── */
+@media (max-width: 360px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+}
+
+/* ── Better touch row hover on mobile ─────────────────── */
+@media (hover: none) {
+  tr:hover td { background: none; }
+  .data-table tr:active { background: var(--beige-mid); }
+}
+
+/* ── Security table: horizontal scroll fallback ─────────── */
+@media (max-width: 768px) {
+  .security-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Modal: safe area on notched phones ──────────────────── */
+.modal {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+/* ── Prevent any single element from causing overflow ─── */
+* {
+  max-width: 100%;
+}
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Fix for table-container inside card on mobile ─────── */
+@media (max-width: 768px) {
+  .card .table-container {
+    overflow-x: visible;
+    padding: 0;
+  }
+}

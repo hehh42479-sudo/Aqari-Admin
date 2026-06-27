@@ -192,23 +192,25 @@ function logout() {
 }
 
 /* ── Sidebar Nav Items ───────────────────────────────── */
+/* NOTE: perm=null means visible to ALL roles (including supervisor)
+   perm values must exactly match keys in PERM_LABELS             */
 const ALL_NAV = [
   { label:'لوحة التحكم',          route:'dashboard',            perm: null,                   icon:'📊' },
   { label:'العقارات',              route:'properties',           perm:'manage_properties',     icon:'🏠' },
-  { label:'العقارات المميزة',      route:'featured-properties',  perm:'manage_properties',     icon:'⭐' },
-  { label:'الملاك',                route:'owners',               perm:'manage_users',          icon:'👤' },
-  { label:'المكاتب العقارية',      route:'offices',              perm:'manage_users',          icon:'🏢' },
-  { label:'الباحثون',              route:'seekers',              perm:'manage_users',          icon:'🔍' },
+  { label:'العقارات المميزة',      route:'featured-properties',  perm:'manage_featured',       icon:'⭐' },
+  { label:'الملاك',                route:'owners',               perm:'manage_owners',         icon:'👤' },
+  { label:'المكاتب العقارية',      route:'offices',              perm:'manage_offices',        icon:'🏢' },
+  { label:'الباحثون',              route:'seekers',              perm:'manage_seekers',        icon:'🔍' },
   { label:'طلبات الباحثين',        route:'seeker-requests',      perm:'manage_requests',       icon:'📋' },
-  { label:'المشرفون والصلاحيات',   route:'supervisors',          perm:'manage_users',          icon:'👮' },
+  { label:'المشرفون والصلاحيات',   route:'supervisors',          perm:'manage_supervisors',    icon:'👮' },
   { label:'الباقات',               route:'packages',             perm:'manage_subscriptions',  icon:'📦' },
   { label:'الباقات والاشتراكات',   route:'subscriptions',        perm:'manage_subscriptions',  icon:'🌟' },
-  { label:'المدفوعات',             route:'payments',             perm:'manage_subscriptions',  icon:'💰' },
-  { label:'مراجعة المدفوعات',      route:'payment-reviews',      perm:'manage_subscriptions',  icon:'💳' },
-  { label:'طلبات التوثيق',         route:'verifications',        perm:'manage_users',          icon:'✅' },
+  { label:'المدفوعات',             route:'payments',             perm:'manage_payments',       icon:'💰' },
+  { label:'مراجعة المدفوعات',      route:'payment-reviews',      perm:'manage_payments',       icon:'💳' },
+  { label:'طلبات التوثيق',         route:'verifications',        perm:'manage_verifications',  icon:'✅' },
   { label:'إدارة الموظفين',        route:'all-employees',        perm:'manage_employees',      icon:'👔' },
   { label:'الإشعارات',             route:'notifications',        perm:'manage_settings',       icon:'🔔' },
-  { label:'إدارة المحادثات',       route:'chats-management',     perm:'manage_requests',       icon:'💬' },
+  { label:'إدارة المحادثات',       route:'chats-management',     perm:'manage_chats',          icon:'💬' },
   { label:'البلاغات والشكاوى',     route:'complaints',           perm:'manage_requests',       icon:'🚩' },
   { label:'الرسائل والدعم',        route:'messages-support',     perm:'manage_requests',       icon:'📩' },
   { label:'التقييمات',             route:'ratings',              perm:'manage_settings',       icon:'⭐' },
@@ -217,14 +219,14 @@ const ALL_NAV = [
   { label:'سجل الأنشطة',           route:'activity-logs',        perm:'manage_settings',       icon:'📜' },
   { label:'الإعدادات',             route:'settings',             perm:'manage_settings',       icon:'⚙️' },
   { label:'المواقع الجغرافية',     route:'locations',            perm:'manage_cities',         icon:'📍' },
-  { label:'أنواع العقارات',        route:'property-types',       perm:'manage_settings',       icon:'🏗️' },
+  { label:'أنواع العقارات',        route:'property-types',       perm:'manage_cities',         icon:'🏗️' },
   { label:'مراقبة النظام',         route:'monitoring',           perm:'manage_settings',       icon:'🖥️' },
   { label:'الإعلانات',             route:'ads',                  perm:'manage_ads',            icon:'📣' },
-  { label:'النسخ الاحتياطي',       route:'backup',               perm:'manage_settings',       icon:'💾' },
+  { label:'النسخ الاحتياطي',       route:'backup',               perm:'manage_backup',         icon:'💾' },
   { label:'إدارة الأمان',          route:'security',             perm:'manage_security',       icon:'🔒' },
   { label:'مركز الطوارئ',          route:'emergency',            perm:'manage_settings',       icon:'🚨' },
   { label:'إعدادات التطبيق',       route:'app-config',           perm:'manage_settings',       icon:'🔧' },
-  { label:'إدارة التحديثات',       route:'app-updates',          perm:'manage_settings',       icon:'📱' },
+  { label:'إدارة التحديثات',       route:'app-updates',          perm:'manage_updates',        icon:'📱' },
   { label:'دليل الاستخدام',         route:'user-guide',           perm: null,                   icon:'📖' },
 ];
 
@@ -418,7 +420,13 @@ function imgNav(dir) {
 async function renderDashboard() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/stats');
+    const data = await apiWithFallback([
+      '/admin/stats',
+      '/admin/statistics',
+      '/admin/dashboard',
+      '/admin/dashboard/stats',
+      '/admin/overview',
+    ]);
     const s = data;
     const cards = [
       { icon:'🏠', label:'إجمالي العقارات',  value: fmtNum(s.totalProperties||s.total_properties),      color:'#C59D50' },
@@ -454,28 +462,41 @@ async function renderProperties() {
   const main = document.getElementById('main-content');
   const perm = Session.hasPerm('manage_properties');
   try {
-    const data = await GET('/admin/properties');
+    const data = await apiWithFallback([
+      '/admin/properties',
+      '/admin/properties?status=all',
+      '/admin/property/list',
+      '/properties',
+    ]);
     let rows = data.properties || data.data || data || [];
     if (!Array.isArray(rows)) rows = [];
 
     const thead = `<tr>
       <th>الصورة</th><th>العنوان</th><th>النوع</th><th>المدينة</th>
-      <th>السعر</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th>
+      <th>السعر</th><th>المالك</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th>
     </tr>`;
 
     const tbody = rows.length
       ? rows.map(p => {
           const imgs = p.images || p.photos || [];
-          const firstImg = Array.isArray(imgs) && imgs.length
-            ? (typeof imgs[0] === 'string' ? imgs[0] : imgs[0]?.url || imgs[0]?.path || '')
-            : (p.image || p.thumbnail || p.cover_image || '');
+          const imgArr = Array.isArray(imgs)
+            ? imgs.map(i => typeof i === 'string' ? i : (i?.url || i?.path || '')).filter(Boolean)
+            : [];
+          const firstImg = imgArr[0] || p.image || p.thumbnail || p.cover_image || p.main_image || '';
           const thumbHtml = firstImg
-            ? `<img src="${firstImg}" alt="صورة" class="prop-thumb" onclick="openImageModal(${JSON.stringify(Array.isArray(imgs)?imgs.map(i=>typeof i==='string'?i:i?.url||i?.path||''):[firstImg]).replace(/"/g,"'")})" style="cursor:pointer">`
+            ? `<img src="${firstImg}" alt="صورة" class="prop-thumb"
+                onclick="openImageModal(${JSON.stringify(imgArr.length ? imgArr : [firstImg]).replace(/"/g,"'")})"
+                style="cursor:pointer"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+               <div class="prop-thumb-empty" style="display:none">🏠</div>`
             : `<div class="prop-thumb-empty">🏠</div>`;
           const isFeatured = p.is_featured || p.featured || p.status === 'featured';
+          const ownerName = p.owner_name || p.user_name || p.office_name ||
+            (p.owner ? (p.owner.name || p.owner.full_name || '') : '') ||
+            (p.user  ? (p.user.name  || p.user.full_name  || '') : '') || '—';
           const actBtns = perm ? `
             <div class="action-btns-wrap">
-              <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">عرض</button>
+              <button class="btn-action btn-view btn-sm" onclick="viewPropertyDetail(${p.id})">تفاصيل</button>
               <button class="btn-action btn-approve btn-sm" onclick="approveProperty(${p.id})">قبول</button>
               <button class="btn-action btn-reject btn-sm" onclick="rejectProperty(${p.id})">رفض</button>
               ${isFeatured
@@ -487,20 +508,21 @@ async function renderProperties() {
             <td data-label="الصورة">${thumbHtml}</td>
             <td data-label="العنوان"><strong>${p.title||p.property_type||'عقار'}</strong></td>
             <td data-label="النوع">${p.property_type||'—'}<br><small style="color:#888">${p.operation_type||p.offer_type||''}</small></td>
-            <td data-label="المدينة">${p.city||'—'}</td>
+            <td data-label="المدينة">${p.city||p.city_name||'—'}</td>
             <td data-label="السعر">${fmtNum(p.price)}${p.currency?' '+p.currency:''}</td>
+            <td data-label="المالك">${ownerName}</td>
             <td data-label="الحالة">${badgeForStatus(p.status)}</td>
             <td data-label="التاريخ">${fmtDate(p.created_at)}</td>
             <td data-label="الإجراءات" class="actions-cell">${actBtns}</td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="8" class="empty-cell">${emptyHtml('🏠','لا توجد عقارات')}</td></tr>`;
+      : `<tr><td colspan="9" class="empty-cell">${emptyHtml('🏠','لا توجد عقارات')}</td></tr>`;
 
     main.innerHTML = pageHeader('العقارات','إدارة ومراجعة جميع العقارات.',
       `<button class="btn-white" onclick="renderProperties()">🔄 تحديث</button>`) +
       `<div class="card">
         <div class="table-container">
-          <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
         </div>
         <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${rows.length} عقار</p>
       </div>`;
@@ -600,7 +622,11 @@ async function unfeatureProperty(id) {
 async function renderFeaturedProperties() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/properties/featured');
+    const data = await apiWithFallback([
+      '/admin/properties/featured',
+      '/admin/featured-properties',
+      '/admin/properties?featured=true',
+    ]);
     const list = data.properties || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(p => {
       const imgs = p.images || p.photos || [];
@@ -626,7 +652,7 @@ async function renderFeaturedProperties() {
     main.innerHTML = pageHeader('العقارات المميزة','العقارات المعروضة بشكل مميز في التطبيق.',
       `<button class="btn-white" onclick="renderFeaturedProperties()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead><tr><th>الصورة</th><th>#</th><th>العقار</th><th>المالك</th><th>السعر</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <table class="data-table"><thead><tr><th>الصورة</th><th>#</th><th>العقار</th><th>المالك</th><th>السعر</th><th>الحالة</th><th>إجراء</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="7" class="empty-cell">${emptyHtml('⭐','لا توجد عقارات مميزة')}</td></tr>`}</tbody></table>
       </div></div>`;
   } catch(e) {
@@ -765,7 +791,13 @@ async function renderUsersTable(type) {
   const main = document.getElementById('main-content');
   const cfg  = PAGE_CFG[type];
   try {
-    let data = await GET(cfg.endpoint);
+    // Build fallback endpoint list based on type
+    const epMap = {
+      owners:  ['/admin/users?role=owner',  '/admin/owners',  '/admin/users?type=owner'],
+      offices: ['/admin/users?role=office', '/admin/offices', '/admin/users?type=office'],
+      seekers: ['/admin/users?role=seeker', '/admin/seekers', '/admin/users?type=seeker'],
+    };
+    const data = await apiWithFallback(epMap[type] || [cfg.endpoint]);
     let rows = data[type]||data.users||data.data||data||[];
     if (!Array.isArray(rows)) rows = [];
 
@@ -785,7 +817,7 @@ async function renderUsersTable(type) {
       `<button class="btn-white" onclick="renderUsersTable('${type}')">🔄 تحديث</button>`) +
       `<div class="card">
         <div class="table-container">
-          <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+          <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
         </div>
         <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${rows.length} سجل</p>
       </div>`;
@@ -935,7 +967,7 @@ async function unverifyOffice(id) {
 async function renderSeekerRequests() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/requests');
+    const data = await apiWithFallback(['/admin/requests','/admin/seeker-requests','/admin/property-requests']);
     const rows = data.requests||data.data||[];
     const thead = `<tr><th>رقم الطلب</th><th>الباحث</th><th>المدينة</th><th>النوع</th><th>الميزانية</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
@@ -953,7 +985,7 @@ async function renderSeekerRequests() {
     main.innerHTML = pageHeader('طلبات الباحثين','جميع طلبات البحث عن العقارات.',
       `<button class="btn-white" onclick="renderSeekerRequests()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('طلبات الباحثين','') +
@@ -1001,19 +1033,27 @@ const ALL_PERMS = Object.keys(PERM_LABELS);
 async function renderSupervisors() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/supervisors');
-    const rows = data.supervisors||data.data||[];
-    const thead = `<tr><th>الاسم</th><th>الهاتف</th><th>الصلاحيات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr>`;
+    const data = await apiWithFallback(['/admin/supervisors','/admin/users?role=supervisor']);
+    const rows = data.supervisors||data.users||data.data||[];
+    const thead = `<tr><th>الاسم</th><th>الهاتف</th><th>عدد الصلاحيات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
       ? rows.map(r=>{
           const perms = Array.isArray(r.permissions)?r.permissions:[];
           return `<tr>
-            <td data-label="الاسم"><strong>${r.name||'—'}</strong></td>
+            <td data-label="الاسم"><strong>${r.name||r.full_name||'—'}</strong></td>
             <td data-label="الهاتف">${r.phone||'—'}</td>
-            <td data-label="الصلاحيات"><div style="display:flex;flex-wrap:wrap;gap:4px">${perms.map(p=>`<span class="badge badge-gold" style="margin:2px">${PERM_LABELS[p]||p}</span>`).join('')||'<span style="color:#888">لا توجد صلاحيات</span>'}</div></td>
+            <td data-label="عدد الصلاحيات">
+              <div style="display:flex;flex-wrap:wrap;gap:4px">
+                ${perms.length
+                  ? `<span class="badge badge-gold">${perms.length} / ${ALL_PERMS.length} صلاحية</span>
+                     ${perms.slice(0,3).map(p=>`<span class="badge badge-gray" style="margin:2px;font-size:11px">${PERM_ICONS[p]||'🔹'} ${PERM_LABELS[p]||p}</span>`).join('')}
+                     ${perms.length > 3 ? `<span class="badge badge-gray" style="font-size:11px">+${perms.length-3} أخرى</span>` : ''}`
+                  : '<span style="color:#888;font-size:13px">لا توجد صلاحيات</span>'}
+              </div>
+            </td>
             <td data-label="تاريخ الإنشاء">${fmtDate(r.created_at)}</td>
             <td data-label="إجراءات" class="actions-cell"><div class="action-btns">
-              <button class="btn-action btn-view btn-sm" onclick="editSupervisor(${r.id},'${(r.name||'').replace(/'/g,'')}','${r.phone||''}',${JSON.stringify(perms)})">تعديل الصلاحيات</button>
+              <button class="btn-action btn-view btn-sm" onclick="editSupervisor(${r.id},'${(r.name||r.full_name||'').replace(/'/g,'')}','${r.phone||''}',${JSON.stringify(perms)})">تعديل الصلاحيات</button>
               <button class="btn-action btn-delete btn-sm" onclick="deleteSupervisor(${r.id})">حذف</button>
             </div></td>
           </tr>`;
@@ -1022,7 +1062,7 @@ async function renderSupervisors() {
     main.innerHTML = pageHeader('المشرفون والصلاحيات','إدارة حسابات المشرفين وصلاحياتهم.',
       `<button class="btn-white" onclick="showAddSupervisorModal()">+ إضافة مشرف</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('المشرفون والصلاحيات','') +
@@ -1320,7 +1360,7 @@ async function renderPackages() {
     main.innerHTML = pageHeader('الباقات','إدارة باقات الاشتراك المتاحة في التطبيق.',
       `<button class="btn-white" onclick="showAddPackageModal()">+ إضافة باقة</button>`) +
       `<div class="card">
-        ${rows ? `<div class="table-container"><table>
+        ${rows ? `<div class="table-container"><table class="data-table">
           <thead><tr><th>#</th><th>الباقة</th><th>السعر</th><th>المدة</th><th>حد العقارات</th><th>حد الموظفين</th><th>الحالة</th><th>إجراءات</th></tr></thead>
           <tbody>${rows}</tbody></table></div>` : emptyHtml('📦','لا توجد باقات مُعرَّفة','أضف باقة جديدة لعرضها هنا')}
       </div>`;
@@ -1402,7 +1442,7 @@ async function deletePackage(id) {
 async function renderSubscriptions() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/subscriptions');
+    const data = await apiWithFallback(['/admin/subscriptions','/admin/subscription-requests','/admin/user-subscriptions']);
     const rows = data.subscriptions||data.requests||data.data||[];
     const thead = `<tr>
       <th>رقم الطلب</th><th>المستخدم</th><th>الهاتف</th><th>نوع الحساب</th>
@@ -1435,7 +1475,7 @@ async function renderSubscriptions() {
     main.innerHTML = pageHeader('الباقات والاشتراكات','إدارة اشتراكات المكاتب — النظام يدوي بدون دفع إلكتروني.',
       `<button class="btn-white" onclick="showManualSubModal()">+ اشتراك يدوي</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('الباقات والاشتراكات','') +
@@ -1517,7 +1557,7 @@ function showManualSubModal() {
 async function renderPaymentReviews() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/payment-reviews');
+    const data = await apiWithFallback(['/admin/payment-reviews','/admin/payments/reviews','/admin/payments/pending']);
     const rows = data.reviews||data.data||[];
     const thead = `<tr><th>المستخدم</th><th>رقم الحوالة</th><th>الباقة</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
@@ -1537,7 +1577,7 @@ async function renderPaymentReviews() {
     main.innerHTML = pageHeader('مراجعة المدفوعات','مراجعة الحوالات وإثباتات الدفع.',
       `<button class="btn-white" onclick="renderPaymentReviews()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('مراجعة المدفوعات','') +
@@ -1600,7 +1640,7 @@ async function renderVerifications() {
     main.innerHTML = pageHeader('طلبات التوثيق','مراجعة طلبات التوثيق الرسمي.',
       `<button class="btn-white" onclick="renderVerifications()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('طلبات التوثيق','') +
@@ -1658,7 +1698,7 @@ async function requestReupload(id) {
 async function renderAllEmployees() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/all-employees');
+    const data = await apiWithFallback(['/admin/all-employees','/admin/employees','/admin/users?role=employee']);
     const rows = data.employees||data.data||[];
     const thead = `<tr><th>الصورة</th><th>الاسم</th><th>الهاتف</th><th>الحالة</th><th>المكتب</th><th>رقم المكتب</th><th>تاريخ الإضافة</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
@@ -1685,7 +1725,7 @@ async function renderAllEmployees() {
     main.innerHTML = pageHeader('إدارة الموظفين','جميع موظفي المكاتب المسجلين.',
       `<button class="btn-white" onclick="renderAllEmployees()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('إدارة الموظفين','') +
@@ -1721,7 +1761,7 @@ async function deleteEmployee(id) {
 async function renderNotifications() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/notifications');
+    const data = await apiWithFallback(['/admin/notifications','/admin/push-notifications','/notifications']);
     const rows = data.notifications||data.data||[];
     const thead = `<tr><th>العنوان</th><th>الرسالة</th><th>الفئة المستهدفة</th><th>تاريخ الإرسال</th></tr>`;
     const tbody = rows.length
@@ -1735,7 +1775,7 @@ async function renderNotifications() {
     main.innerHTML = pageHeader('الإشعارات','إرسال وإدارة إشعارات التطبيق.',
       `<button class="btn-white" onclick="showNotifModal()">+ إشعار جديد</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('الإشعارات','') +
@@ -1774,7 +1814,7 @@ function showNotifModal() {
 async function renderChats() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/chats');
+    const data = await apiWithFallback(['/admin/chats','/admin/chat-rooms','/admin/conversations']);
     const rows = data.rooms||data.chats||data.data||data||[];
     const thead = `<tr><th>رقم الغرفة</th><th>المشاركون</th><th>آخر رسالة</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>`;
     const tbody = rows.length
@@ -1799,7 +1839,7 @@ async function renderChats() {
     main.innerHTML = pageHeader('إدارة المحادثات','مراقبة محادثات المستخدمين.',
       `<button class="btn-white" onclick="renderChats()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('إدارة المحادثات','') +
@@ -2001,7 +2041,7 @@ async function renderReports() {
 async function renderActivityLogs() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/activity-log');
+    const data = await apiWithFallback(['/admin/activity-log','/admin/activity-logs','/admin/logs','/admin/audit-log']);
     const rows = data.logs||data.data||[];
     const thead = `<tr><th>الحدث</th><th>المستخدم</th><th>التفاصيل</th><th>التاريخ</th></tr>`;
     const tbody = rows.length
@@ -2015,7 +2055,7 @@ async function renderActivityLogs() {
     main.innerHTML = pageHeader('سجل الأنشطة','جميع أنشطة الإدارة المسجلة.',
       `<button class="btn-white" onclick="renderActivityLogs()">🔄 تحديث</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('سجل الأنشطة','') +
@@ -2029,7 +2069,7 @@ async function renderActivityLogs() {
 async function renderSettings() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/settings');
+    const data = await apiWithFallback(['/admin/settings','/admin/app-settings','/admin/config/settings']);
     const settings = data.settings||data||{};
     const rows = Object.entries(settings).map(([k,v])=>
       `<div class="insight-row">
@@ -2097,7 +2137,7 @@ async function renderLocations() {
     main.innerHTML = pageHeader('المواقع الجغرافية','إدارة المدن والمناطق.',
       `<button class="btn-white" onclick="showAddCityModal()">+ إضافة مدينة</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div>
       <p style="padding:12px 16px 0;color:#6B7280;font-size:13px">إجمالي: ${arrRows.length} مدينة</p>
       </div>`;
@@ -2186,7 +2226,7 @@ async function renderPropertyTypes() {
     main.innerHTML = pageHeader('أنواع العقارات','إدارة أنواع العقارات المتاحة.',
       `<button class="btn-white" onclick="showAddPropertyTypeModal()">+ إضافة نوع</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('أنواع العقارات','') +
@@ -2224,7 +2264,7 @@ async function deletePropertyType(id) {
 async function renderMonitoring() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/monitoring/health');
+    const data = await apiWithFallback(['/admin/monitoring/health','/admin/health','/admin/system/health','/health']);
     const render = (obj, depth=0) => {
       if (typeof obj !== 'object' || !obj) return `<span>${obj}</span>`;
       return Object.entries(obj).map(([k,v])=>`
@@ -2277,7 +2317,7 @@ async function renderAds() {
     main.innerHTML = pageHeader('الإعلانات','إدارة الإعلانات في التطبيق.',
       `<button class="btn-white" onclick="showAddAdModal()">+ إضافة إعلان</button>`) +
       `<div class="card"><div class="table-container">
-        <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+        <table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
       </div></div>`;
   } catch(e) {
     main.innerHTML = pageHeader('الإعلانات','') +
@@ -2343,7 +2383,7 @@ async function deleteAd(id) {
 async function renderBackup() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/backup');
+    const data = await apiWithFallback(['/admin/backup','/admin/backups','/admin/database/backups']);
     const list = data.backups || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(b => `<tr>
       <td data-label="#"><strong>${b.id||'-'}</strong></td>
@@ -2359,7 +2399,7 @@ async function renderBackup() {
     main.innerHTML = pageHeader('النسخ الاحتياطي','إدارة النسخ الاحتياطية لقاعدة البيانات.',
       `<button class="btn-primary" onclick="createBackup()">📦 إنشاء نسخة احتياطية</button>`) +
       `<div class="card">
-        ${rows ? `<div class="table-container"><table>
+        ${rows ? `<div class="table-container"><table class="data-table">
           <thead><tr><th>#</th><th>اسم الملف</th><th>الحجم</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead>
           <tbody>${rows}</tbody></table></div>` : emptyHtml('💾','لا توجد نسخ احتياطية بعد','اضغط على الزر أعلاه لإنشاء نسخة احتياطية')}
       </div>`;
@@ -2431,7 +2471,7 @@ async function renderSecurity() {
       : `<tr><td colspan="5" class="empty-cell">${emptyHtml('🔒','لا يوجد مستخدمون محظورون')}</td></tr>`;
 
     const auditHtml = auditLogs.length
-      ? `<div class="table-container"><table>
+      ? `<div class="table-container"><table class="data-table">
           <thead><tr><th>الحدث</th><th>المستخدم</th><th>التفاصيل</th><th>IP</th><th>التاريخ</th></tr></thead>
           <tbody>${auditLogs.map(l=>`<tr>
             <td data-label="الحدث"><span class="badge badge-gold">${l.action||l.event||'—'}</span></td>
@@ -2448,7 +2488,7 @@ async function renderSecurity() {
       `<div class="card">
         <h3 style="font-size:16px;font-weight:800;margin-bottom:16px">🚫 المستخدمون المحظورون</h3>
         <div class="table-container">
-          <table><thead><tr><th>المستخدم</th><th>الهاتف</th><th>السبب</th><th>تاريخ الحظر</th><th>إجراءات</th></tr></thead>
+          <table class="data-table"><thead><tr><th>المستخدم</th><th>الهاتف</th><th>السبب</th><th>تاريخ الحظر</th><th>إجراءات</th></tr></thead>
           <tbody>${bannedRows}</tbody></table>
         </div>
       </div>
@@ -2534,7 +2574,7 @@ async function toggleEmergencyFlag(key, currentValue) {
 async function renderPayments() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/payments');
+    const data = await apiWithFallback(['/admin/payments','/admin/payment-transactions','/admin/transactions']);
     const list = data.payments || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(p => `<tr>
       <td data-label="#">${p.id||'-'}</td>
@@ -2546,7 +2586,7 @@ async function renderPayments() {
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('المدفوعات','سجل جميع المدفوعات في النظام.',
       `<button class="btn-white" onclick="renderPayments()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container"><table>
+      `<div class="card"><div class="table-container"><table class="data-table">
         <thead><tr><th>#</th><th>المستخدم</th><th>الباقة</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th></tr></thead>
         <tbody>${rows||`<tr><td colspan="6" class="empty-cell">${emptyHtml('💰','لا توجد مدفوعات')}</td></tr>`}</tbody>
       </table></div></div>`;
@@ -2561,7 +2601,7 @@ async function renderPayments() {
 async function renderComplaints() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/complaints');
+    const data = await apiWithFallback(['/admin/complaints','/admin/reports/complaints','/admin/support/complaints']);
     const list = data.complaints || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(c => `<tr>
       <td data-label="#">${c.id||'-'}</td>
@@ -2576,7 +2616,7 @@ async function renderComplaints() {
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('البلاغات والشكاوى','إدارة البلاغات والشكاوى المُقدّمة من المستخدمين.',
       `<button class="btn-white" onclick="renderComplaints()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container"><table>
+      `<div class="card"><div class="table-container"><table class="data-table">
         <thead><tr><th>#</th><th>المُبلِّغ</th><th>الموضوع</th><th>الوصف</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead>
         <tbody>${rows||`<tr><td colspan="7" class="empty-cell">${emptyHtml('🚩','لا توجد شكاوى')}</td></tr>`}</tbody>
       </table></div></div>`;
@@ -2598,7 +2638,7 @@ async function resolveComplaint(id) {
 async function renderMessagesSupport() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/messages');
+    const data = await apiWithFallback(['/admin/messages','/admin/support-messages','/admin/contact-messages','/admin/support']);
     const list = data.messages || data.data || data || [];
     const rows = Array.isArray(list) ? list.map(m => `<tr>
       <td data-label="#">${m.id||'-'}</td>
@@ -2612,7 +2652,7 @@ async function renderMessagesSupport() {
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('الرسائل والدعم','رسائل الدعم الفني الواردة من المستخدمين.',
       `<button class="btn-white" onclick="renderMessagesSupport()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container"><table>
+      `<div class="card"><div class="table-container"><table class="data-table">
         <thead><tr><th>#</th><th>المُرسِل</th><th>الرسالة</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr></thead>
         <tbody>${rows||`<tr><td colspan="6" class="empty-cell">${emptyHtml('📩','لا توجد رسائل')}</td></tr>`}</tbody>
       </table></div></div>`;
@@ -2633,7 +2673,7 @@ async function markMessageRead(id) {
 async function renderRatings() {
   const main = document.getElementById('main-content');
   try {
-    const data = await GET('/admin/ratings');
+    const data = await apiWithFallback(['/admin/ratings','/admin/reviews','/admin/user-ratings']);
     const list = data.ratings || data.data || data || [];
     const stars = n => '★'.repeat(Math.round(n||0)) + '☆'.repeat(5-Math.round(n||0));
     const rows = Array.isArray(list) ? list.map(r => `<tr>
@@ -2646,7 +2686,7 @@ async function renderRatings() {
     </tr>`).join('') : '';
     main.innerHTML = pageHeader('التقييمات','تقييمات المستخدمين والمكاتب العقارية.',
       `<button class="btn-white" onclick="renderRatings()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container"><table>
+      `<div class="card"><div class="table-container"><table class="data-table">
         <thead><tr><th>#</th><th>المُقيِّم</th><th>المُقيَّم</th><th>التقييم</th><th>التعليق</th><th>التاريخ</th></tr></thead>
         <tbody>${rows||`<tr><td colspan="6" class="empty-cell">${emptyHtml('⭐','لا توجد تقييمات')}</td></tr>`}</tbody>
       </table></div></div>`;
@@ -2681,7 +2721,7 @@ async function renderContentPages() {
     </tr>`).join('');
     main.innerHTML = pageHeader('إدارة المحتوى','صفحات المحتوى الثابتة (سياسة الخصوصية، الشروط، إلخ).',
       `<button class="btn-white" onclick="renderContentPages()">🔄 تحديث</button>`) +
-      `<div class="card"><div class="table-container"><table>
+      `<div class="card"><div class="table-container"><table class="data-table">
         <thead><tr><th>#</th><th>العنوان</th><th>النوع</th><th>الحالة</th><th>آخر تعديل</th><th>إجراءات</th></tr></thead>
         <tbody>${rows||`<tr><td colspan="6" class="empty-cell">${emptyHtml('📄','لا توجد صفحات محتوى')}</td></tr>`}</tbody>
       </table></div></div>`;
@@ -2799,7 +2839,7 @@ async function renderAppUpdates() {
     main.innerHTML = pageHeader('إدارة التحديثات','تحديثات التطبيق للأندرويد والـ iOS.',
       `<button class="btn-white" onclick="showAddUpdateModal()">+ إضافة تحديث</button>`) +
       `<div class="card">
-        ${rows ? `<div class="table-container"><table>
+        ${rows ? `<div class="table-container"><table class="data-table">
           <thead><tr><th>#</th><th>الإصدار</th><th>المنصة</th><th>الملاحظات</th><th>النوع</th><th>التاريخ</th></tr></thead>
           <tbody>${rows}</tbody></table></div>` : emptyHtml('📱','لا توجد تحديثات مسجّلة','أضف أول تحديث للتطبيق')}
       </div>`;
@@ -2820,10 +2860,9 @@ function showAddUpdateModal() {
     <div class="form-group"><label>الملاحظات / ما الجديد</label><textarea id="upd-notes" placeholder="ملاحظات الإصدار..."></textarea></div>
     <div class="form-group"><label>رابط التحديث (URL)</label><input type="url" id="upd-url" placeholder="https://play.google.com/..."></div>
     <div class="form-group">
-      <label class="perm-checkbox" onclick="togglePerm(this)" id="upd-forced-label">
-        <input type="checkbox" id="upd-forced">
-        <div class="perm-check-icon">✓</div>
-        <span class="perm-label">تحديث إجباري</span>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-mid)">
+        <input type="checkbox" id="upd-forced" style="width:18px;height:18px;cursor:pointer;accent-color:var(--gold)">
+        تحديث إجباري
       </label>
     </div>`,
     async () => {
@@ -2974,18 +3013,23 @@ function renderUserGuide() {
     {
       icon: '👮',
       title: 'المشرفون والصلاحيات',
-      desc: 'إدارة المشرفين وتعيين 11 نوع من الصلاحيات',
+      desc: 'إدارة المشرفين وتعيين 21 نوع من الصلاحيات',
       content: `
-        <p class="guide-content">يمكنك تعيين أي مجموعة من الصلاحيات الـ 11 لكل مشرف:</p>
+        <p class="guide-content">يمكنك تعيين أي مجموعة من الصلاحيات الـ 21 لكل مشرف:</p>
         <ul class="guide-content" style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
-          <li>إدارة العقارات</li><li>إدارة المستخدمين</li>
-          <li>إدارة الاشتراكات</li><li>إدارة الطلبات</li>
-          <li>إدارة الإعدادات</li><li>إدارة الموظفين</li>
-          <li>إدارة المدن</li><li>إدارة الإعلانات</li>
-          <li>إدارة التقارير</li><li>إدارة المحتوى</li>
-          <li>إدارة الأمان</li>
+          <li>🏠 إدارة العقارات</li><li>⭐ إدارة العقارات المميزة</li>
+          <li>👤 إدارة الملاك</li><li>🏢 إدارة المكاتب</li>
+          <li>🔍 إدارة الباحثين</li><li>👮 إدارة المشرفين</li>
+          <li>🌟 إدارة الاشتراكات</li><li>💰 إدارة المدفوعات</li>
+          <li>✅ إدارة التوثيق</li><li>👔 إدارة الموظفين</li>
+          <li>💬 إدارة المحادثات</li><li>📄 إدارة المحتوى</li>
+          <li>📣 إدارة الإعلانات</li><li>📍 إدارة المدن</li>
+          <li>📈 إدارة التقارير</li><li>💾 إدارة النسخ الاحتياطي</li>
+          <li>🔒 إدارة الأمان</li><li>⚙️ إعدادات التطبيق</li>
+          <li>📱 إدارة التحديثات</li><li>📋 إدارة الطلبات</li>
+          <li>👥 إدارة المستخدمين (عام)</li>
         </ul>
-        <p class="guide-content" style="margin-top:8px">المشرفون يدخلون عبر OTP مثل الأدمن.</p>
+        <p class="guide-content" style="margin-top:8px">المشرفون يدخلون عبر OTP مثل الأدمن. القائمة الجانبية تظهر فقط الأقسام المسموح بها.</p>
       `
     },
     {
