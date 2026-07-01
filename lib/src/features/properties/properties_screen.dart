@@ -846,7 +846,7 @@ class _PropertiesScreenState extends State<PropertiesScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: t.color.withOpacity(0.13),
+                            color: t.color.withValues(alpha: 0.13),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -913,7 +913,7 @@ class _PropertiesScreenState extends State<PropertiesScreen>
       if (_actionLoading)
         Positioned.fill(
           child: Container(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             child: const Center(child: CircularProgressIndicator()),
           ),
         ),
@@ -1115,9 +1115,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(label,
           style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
@@ -1230,9 +1230,9 @@ class _ActionBtn extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withOpacity(0.25)),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
           ),
           child: Icon(icon, size: 16, color: color),
         ),
@@ -1401,7 +1401,7 @@ class _PropertyDetailDialogState extends State<_PropertyDetailDialog> {
                           ),
                           boxShadow: isSelected
                               ? [BoxShadow(
-                                  color: const Color(0xFFD4AF37).withOpacity(0.45),
+                                  color: const Color(0xFFD4AF37).withValues(alpha: 0.45),
                                   blurRadius: 6,
                                 )]
                               : null,
@@ -1511,9 +1511,9 @@ class _PropertyDetailDialogState extends State<_PropertyDetailDialog> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD92D20).withOpacity(0.07),
+                        color: const Color(0xFFD92D20).withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFD92D20).withOpacity(0.2)),
+                        border: Border.all(color: const Color(0xFFD92D20).withValues(alpha: 0.2)),
                       ),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Icon(Icons.info_outline, color: Color(0xFFD92D20), size: 18),
@@ -1670,7 +1670,7 @@ class _DetailActionBtn extends StatelessWidget {
       icon: Icon(icon, size: 16, color: color),
       label: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
       style: OutlinedButton.styleFrom(
-        side: BorderSide(color: color.withOpacity(0.35)),
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

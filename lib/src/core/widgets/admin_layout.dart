@@ -388,14 +388,14 @@ class _BrandHeader extends StatelessWidget {
           width: isCompact ? 40 : 48,
           height: isCompact ? 40 : 48,
             decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.14),
+            color: Colors.white.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(16),
           ),
           padding: const EdgeInsets.all(6),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(
-              'assets/logo.png.png',
+              'assets/logo.png',
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
                 return const Center(
@@ -445,7 +445,7 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isActive ? Colors.white : const Color(0xFFDDE8F4);
     final background = isActive
-      ? Colors.white.withOpacity(0.14)
+      ? Colors.white.withValues(alpha: 0.14)
       : Colors.transparent;
 
     return Padding(
@@ -464,7 +464,7 @@ class _SidebarItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isActive
-                  ? Colors.white.withOpacity(0.22)
+                  ? Colors.white.withValues(alpha: 0.22)
                   : Colors.transparent,
               ),
             ),
@@ -512,7 +512,7 @@ class _LogoutButton extends StatelessWidget {
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFFFFD4D4),
-          side: BorderSide(color: Colors.white.withOpacity(0.24)),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.24)),
           padding: EdgeInsets.symmetric(
             horizontal: isCompact ? 12 : 14,
             vertical: 14,
