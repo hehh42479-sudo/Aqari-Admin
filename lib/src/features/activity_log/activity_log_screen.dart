@@ -88,7 +88,7 @@ class ActivityLogScreen extends StatelessWidget {
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
-                  headingRowColor: MaterialStateProperty.all(
+                  headingRowColor: WidgetStateProperty.all(
                     const Color(0xFFF3F4F6),
                   ),
                   columns: const <DataColumn>[

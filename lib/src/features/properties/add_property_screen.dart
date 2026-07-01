@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'add_property_state.dart';
@@ -16,24 +15,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
-  LatLng _selectedLocation = const LatLng(24.7136, 46.6753);
-  Set<Marker> _markers = {
-    const Marker(
-      markerId: MarkerId('property-pin'),
-      position: LatLng(24.7136, 46.6753),
-    )
-  };
+  final _latController = TextEditingController(text: '24.7136');
+  final _lngController = TextEditingController(text: '46.6753');
 
-  void _updateLocation(LatLng location) {
-    setState(() {
-      _selectedLocation = location;
-      _markers = {
-        Marker(
-          markerId: const MarkerId('property-pin'),
-          position: location,
-        ),
-      };
-    });
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _priceController.dispose();
+    _descriptionController.dispose();
+    _latController.dispose();
+    _lngController.dispose();
+    super.dispose();
   }
 
   void _saveProperty() {
@@ -107,7 +99,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           ),
                           const SizedBox(height: 18),
                           DropdownButtonFormField<String>(
-                            initialValue: state.selectedCity,
+                            value: state.selectedCity,
                             decoration: const InputDecoration(
                               labelText: 'المدينة',
                             ),
@@ -123,7 +115,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           ),
                           const SizedBox(height: 14),
                           DropdownButtonFormField<String>(
-                            initialValue: state.selectedDistrict,
+                            value: state.selectedDistrict,
                             decoration: const InputDecoration(
                               labelText: 'الحي',
                             ),
@@ -139,7 +131,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           ),
                           const SizedBox(height: 14),
                           DropdownButtonFormField<String>(
-                            initialValue: state.selectedNeighborhood,
+                            value: state.selectedNeighborhood,
                             decoration: const InputDecoration(
                               labelText: 'المنطقة',
                             ),
@@ -154,32 +146,67 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             onChanged: state.onNeighborhoodChanged,
                           ),
                           const SizedBox(height: 24),
-                          Text(
-                            'اختر موقع العقار على الخريطة بالضغط عليها',
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 300,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: _selectedLocation,
-                                  zoom: 12,
-                                ),
-                                markers: _markers,
-                                onTap: _updateLocation,
-                                myLocationButtonEnabled: false,
-                                zoomControlsEnabled: false,
-                                mapType: MapType.normal,
-                              ),
+                          // Location coordinates input (replaces Google Maps which is unsupported on web)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F7FB),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5EAF2)),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'الإحداثيات: ${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on_outlined,
+                                        color: Color(0xFF0B3A66), size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'إحداثيات موقع العقار',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                              color: const Color(0xFF0B3A66),
+                                              fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _latController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                                decimal: true),
+                                        decoration: const InputDecoration(
+                                          labelText: 'خط العرض (Latitude)',
+                                          hintText: '24.7136',
+                                          prefixIcon: Icon(Icons.swap_vert_rounded),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _lngController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                                decimal: true),
+                                        decoration: const InputDecoration(
+                                          labelText: 'خط الطول (Longitude)',
+                                          hintText: '46.6753',
+                                          prefixIcon: Icon(Icons.swap_horiz_rounded),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 24),
                           Align(

@@ -469,7 +469,7 @@ class _SeekerRequestsScreenState extends State<SeekerRequestsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF0B3A66).withOpacity(0.08),
+                color: const Color(0xFF0B3A66).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
@@ -546,7 +546,7 @@ class _SeekerRequestsScreenState extends State<SeekerRequestsScreen> {
                     setState(() => _selectedStatus = filter.value);
                     _applyFilters();
                   },
-                  selectedColor: filter.color.withOpacity(0.15),
+                  selectedColor: filter.color.withValues(alpha: 0.15),
                   checkmarkColor: filter.color,
                   labelStyle: TextStyle(
                     color: isSelected ? filter.color : const Color(0xFF64748B),
@@ -709,9 +709,9 @@ class _SummaryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: <Widget>[
@@ -770,7 +770,7 @@ class _SeekerRequestCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: req.statusColor.withOpacity(0.25),
+          color: req.statusColor.withValues(alpha: 0.25),
         ),
       ),
       child: Stack(
@@ -1061,9 +1061,9 @@ class _ActionBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.07),
+          color: color.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1249,9 +1249,9 @@ class _AvatarWidget extends StatelessWidget {
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Center(
         child: Text(
@@ -1278,9 +1278,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,

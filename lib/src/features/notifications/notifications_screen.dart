@@ -350,7 +350,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF0B3A66).withOpacity(0.08),
+                color: const Color(0xFF0B3A66).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
@@ -765,7 +765,7 @@ class _TargetTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bgColor = isSelected
-        ? option.color.withOpacity(0.12)
+        ? option.color.withValues(alpha: 0.12)
         : const Color(0xFFF8FAFC);
     final borderColor =
         isSelected ? option.color : const Color(0xFFE2E8F0);
@@ -791,7 +791,7 @@ class _TargetTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: option.color.withOpacity(isSelected ? 0.18 : 0.08),
+                  color: option.color.withValues(alpha: isSelected ? 0.18 : 0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(option.icon, color: option.color, size: 16),
@@ -837,7 +837,7 @@ class _NotifHistoryCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -971,9 +971,9 @@ class _AudienceBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,

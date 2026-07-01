@@ -591,9 +591,9 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Column(
         children: [
@@ -799,7 +799,7 @@ class _VerifCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: record.isRejected
-                        ? const Color(0xFFB02A37).withOpacity(0.3)
+                        ? const Color(0xFFB02A37).withValues(alpha: 0.3)
                         : const Color(0xFFE5EAF2),
                   ),
                 ),
@@ -875,10 +875,10 @@ class _VerifCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF17B26A).withOpacity(0.08),
+                  color: const Color(0xFF17B26A).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFF17B26A).withOpacity(0.25)),
+                      color: const Color(0xFF17B26A).withValues(alpha: 0.25)),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -898,10 +898,10 @@ class _VerifCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFB02A37).withOpacity(0.06),
+                  color: const Color(0xFFB02A37).withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFFB02A37).withOpacity(0.2)),
+                      color: const Color(0xFFB02A37).withValues(alpha: 0.2)),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -939,9 +939,9 @@ class _AvatarWidget extends StatelessWidget {
       width: 46,
       height: 46,
       decoration: BoxDecoration(
-        color: record.roleColor.withOpacity(0.12),
+        color: record.roleColor.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(color: record.roleColor.withOpacity(0.3)),
+        border: Border.all(color: record.roleColor.withValues(alpha: 0.3)),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -966,7 +966,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label,
